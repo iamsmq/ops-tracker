@@ -350,6 +350,16 @@ select,input[type=number]{font-family:inherit;font-size:12.5px;border:1px solid 
         <div class="bd"><div class="chartbox sm"><canvas id="thirdChart"></canvas></div></div>
       </div>
     </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="hd"><h3>Avg OFD per vendor</h3><span class="note">OFD ÷ couriers</span></div>
+        <div class="bd"><div class="chartbox sm"><canvas id="avgVendChart"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>Avg OFD per location</h3><span class="note">OFD ÷ couriers</span></div>
+        <div class="bd"><div class="chartbox sm"><canvas id="avgLocChart"></canvas></div></div>
+      </div>
+    </div>
     <div class="card" style="margin-bottom:18px">
       <div class="hd"><h3 id="loadTitle">Load split by station</h3><span class="note" id="loadNote">share of total OFD</span></div>
       <div class="bd"><div class="chartbox" id="loadBox"><canvas id="loadChart"></canvas></div></div>
@@ -647,7 +657,7 @@ function kpi(lab,val,unit,sub,cls){
 }
 
 /* ---------- charts ---------- */
-const CANVAS={stn:'stnChart',status:'statusChart',vend:'vendChart',third:'thirdChart',load:'loadChart'};
+const CANVAS={stn:'stnChart',status:'statusChart',vend:'vendChart',third:'thirdChart',load:'loadChart',avgVend:'avgVendChart',avgLoc:'avgLocChart'};
 function destroy(id){
   if(charts[id]){ try{charts[id].destroy();}catch(e){} delete charts[id]; }
   const ex = (typeof Chart!=='undefined' && Chart.getChart) ? Chart.getChart(CANVAS[id]) : null;
@@ -749,6 +759,38 @@ function renderCharts(){
           formatter:(v,c)=>{ const n=c.dataset.crr[c.dataIndex]; return Math.round(v)+'%'+(n?' · '+n+'c':''); }}},
       scales:{x:{stacked:true,min:0,max:100,grid:{color:'#eef2f6'},title:{display:true,text:'% of station OFD',font:{size:10}},ticks:{font:{size:10},callback:v=>v+'%'}},
         y:{stacked:true,grid:{display:false},ticks:{font:{size:11}}}}}
+  });
+
+  // avg OFD per vendor
+  destroy('avgVend');
+  const avgVg={};
+  scored().forEach(r=>{ const v=r.isp||'—'; if(!avgVg[v])avgVg[v]={ofd:0,crr:0}; avgVg[v].ofd+=r.ofd||0; avgVg[v].crr++; });
+  const va=Object.entries(avgVg).map(([isp,o])=>({isp,avg:o.crr?o.ofd/o.crr:0,crr:o.crr})).sort((a,b)=>b.avg-a.avg);
+  charts.avgVend=new Chart(document.getElementById('avgVendChart'),{
+    type:'bar',
+    data:{labels:va.map(v=>shortV(v.isp)),datasets:[{label:'Avg OFD',data:va.map(v=>+v.avg.toFixed(1)),crr:va.map(v=>v.crr),
+      backgroundColor:va.map(v=>(v.isp in VPRIORITY)?'#6d28d9':'#c4b5e8'),borderRadius:5,maxBarThickness:40}]},
+    options:{maintainAspectRatio:false,layout:{padding:{top:16}},
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(1)+' avg OFD · '+c.dataset.crr[c.dataIndex]+' couriers'}},
+        datalabels:{display:true,anchor:'end',align:'end',offset:1,clamp:true,color:'#4c1d95',font:{size:9.5,weight:'700'},formatter:v=>v.toFixed(0)}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:40,minRotation:40}},
+        y:{beginAtZero:true,grid:{color:'#eef2f6'},title:{display:true,text:'Avg OFD',font:{size:10}},ticks:{font:{size:10}}}}}
+  });
+
+  // avg OFD per location
+  destroy('avgLoc');
+  const la=stns.map(s=>({city:s.city,avg:s.crr?s.ofd/s.crr:0,crr:s.crr})).filter(a=>a.crr>0).sort((a,b)=>b.avg-a.avg);
+  charts.avgLoc=new Chart(document.getElementById('avgLocChart'),{
+    type:'bar',
+    data:{labels:la.map(a=>a.city),datasets:[{label:'Avg OFD',data:la.map(a=>+a.avg.toFixed(1)),crr:la.map(a=>a.crr),
+      backgroundColor:'#ea580c',borderRadius:5,maxBarThickness:40}]},
+    options:{maintainAspectRatio:false,layout:{padding:{top:16}},
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(1)+' avg OFD · '+c.dataset.crr[c.dataIndex]+' couriers'}},
+        datalabels:{display:true,anchor:'end',align:'end',offset:1,clamp:true,color:'#c2410c',font:{size:9.5,weight:'700'},formatter:v=>v.toFixed(0)}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:40,minRotation:40}},
+        y:{beginAtZero:true,grid:{color:'#eef2f6'},title:{display:true,text:'Avg OFD',font:{size:10}},ticks:{font:{size:10}}}}}
   });
 }
 function renderOverviewStations(){
