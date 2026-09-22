@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Operations Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#16202c; --muted:#64748b; --line:#e2e8f0;
+  --brand:#6d28d9; --brand-2:#4c1d95; --brand-ink:#ece7fb;
+  --accent:#ea580c; --accent-2:#c2410c; --accent-ink:#fdece0;
+  --ok:#15803d; --ok-bg:#eaf6ee; --warn:#b45309; --warn-bg:#fbf1e4; --risk:#b91c1c; --risk-bg:#fbeaea;
+  --idle:#475569; --idle-bg:#eef2f6;
+  --shadow:0 1px 2px rgba(16,32,44,.06),0 4px 14px rgba(16,32,44,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);
+  font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif;
+  font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+button{font-family:inherit;cursor:pointer}
+h1,h2,h3{margin:0;font-weight:640;letter-spacing:-.01em}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+/* top bar */
+.topbar{background:var(--brand);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.topbar .brandmark{display:flex;flex-direction:column;line-height:1.05}
+.topbar .brandmark b{font-size:16px;letter-spacing:-.01em}
+.topbar .brandmark span{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--brand-ink);opacity:.85}
+.spacer{flex:1}
+.meta{font-size:11.5px;color:var(--brand-ink);text-align:right;line-height:1.3}
+.btn{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28);
+  padding:7px 13px;border-radius:7px;font-size:12.5px;font-weight:600}
+.btn:hover{background:rgba(255,255,255,.22)}
+.btn.solid{background:#fff;color:var(--brand);border-color:#fff}
+
+/* segment switch */
+.segswitch{display:inline-flex;background:var(--brand-2);border-radius:9px;padding:3px;gap:3px}
+.segswitch button{background:transparent;color:var(--brand-ink);border:0;padding:8px 16px;border-radius:7px;
+  font-weight:670;font-size:13px;letter-spacing:.02em;display:flex;flex-direction:column;align-items:flex-start;line-height:1.1}
+.segswitch button small{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.7;font-weight:700}
+.segswitch button.on{background:#fff;color:var(--brand)}
+.segswitch button.on small{opacity:.65}
+
+/* subnav */
+.subnav{background:var(--panel);border-bottom:1px solid var(--line);padding:0 22px;display:flex;gap:2px;overflow-x:auto}
+.subnav button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--muted);
+  padding:12px 14px;font-size:13px;font-weight:600;white-space:nowrap}
+.subnav button:hover{color:var(--ink)}
+.subnav button.on{color:var(--brand);border-bottom-color:var(--accent)}
+.subnav .pillcount{display:inline-block;min-width:18px;text-align:center;background:var(--line);color:var(--ink);
+  border-radius:10px;font-size:11px;padding:1px 6px;margin-left:6px;font-variant-numeric:tabular-nums}
+.subnav button.on .pillcount{background:var(--brand);color:#fff}
+
+.wrap{max-width:1240px;margin:0 auto;padding:22px}
+.view{display:none}
+.view.on{display:block;animation:fade .2s ease}
+@keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* kpi cards */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 15px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi .lab{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.kpi .val{font-size:27px;font-weight:700;letter-spacing:-.02em;margin-top:5px}
+.kpi .val small{font-size:14px;color:var(--muted);font-weight:600}
+.kpi .sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+.kpi .strip{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--line)}
+.kpi.ok .strip{background:var(--ok)} .kpi.warn .strip{background:var(--warn)} .kpi.risk .strip{background:var(--risk)}
+.kpi.ok .val{color:var(--ok)} .kpi.warn .val{color:var(--warn)} .kpi.risk .val{color:var(--risk)}
+
+.grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:16px;margin-bottom:18px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.card .hd{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.card .hd h3{font-size:14px}
+.card .hd .note{font-size:11.5px;color:var(--muted);margin-left:auto}
+.card .bd{padding:14px 16px}
+.chartbox{position:relative;height:270px}
+.chartbox.sm{height:230px}
+
+/* tables */
+table{width:100%;border-collapse:collapse}
+th,td{text-align:right;padding:9px 10px;font-variant-numeric:tabular-nums;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;
+  border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);cursor:pointer;user-select:none}
+thead th:hover{color:var(--ink)}
+tbody td{border-bottom:1px solid #f1f4f7;font-size:13px}
+tbody tr:hover{background:#f8fafb}
+.stationrow{cursor:pointer}
+.stationrow td:first-child{font-weight:640}
+.caret{display:inline-block;width:0;height:0;border-left:5px solid var(--muted);border-top:4px solid transparent;
+  border-bottom:4px solid transparent;margin-right:8px;transition:transform .15s;vertical-align:middle}
+.stationrow.open .caret{transform:rotate(90deg)}
+.vendorrow td{background:#fafcfd;font-size:12.5px;color:var(--muted)}
+.vendorrow td:first-child{padding-left:30px}
+.vendorrow.hide{display:none}
+
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em}
+.tag.ok{background:var(--ok-bg);color:var(--ok)} .tag.warn{background:var(--warn-bg);color:var(--warn)}
+.tag.risk{background:var(--risk-bg);color:var(--risk)} .tag.idle{background:var(--idle-bg);color:var(--idle)}
+.pod-ok{color:var(--ok);font-weight:640}.pod-warn{color:var(--warn);font-weight:640}.pod-risk{color:var(--risk);font-weight:700}
+
+.tablecard{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}
+.tablecard .hd{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tablecard .hd h3{font-size:14px}
+.tablecard .hd .desc{font-size:11.5px;color:var(--muted)}
+.scroll{overflow-x:auto}
+.empty{padding:30px 16px;text-align:center;color:var(--muted);font-size:13px}
+.filterbar{display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap}
+select,input[type=number]{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:7px;padding:6px 8px;color:var(--ink);background:#fff}
+
+/* targets */
+.tform{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+.tset{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.tset h3{font-size:13.5px;margin-bottom:4px}
+.tset p{font-size:11.5px;color:var(--muted);margin:0 0 12px}
+.frow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid #f1f4f7}
+.frow label{font-size:12.5px}
+.frow input{width:78px;text-align:right}
+.vendorchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ofd-list{margin-top:4px}
+.ofd-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid #f1f4f7}
+.ofd-row label{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer}
+.ofd-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--brand);cursor:pointer}
+.ofd-row .ofd-tgt{width:74px;text-align:right}
+.ofd-row .ofd-tgt:disabled{opacity:.4}
+.chip{font-size:11.5px;background:var(--brand-ink);color:var(--brand-2);padding:3px 9px;border-radius:999px;font-weight:600}
+.hint{background:var(--warn-bg);border:1px solid #f0d9b8;color:#7c4a10;border-radius:10px;padding:10px 13px;font-size:12.5px;margin-bottom:16px;display:flex;gap:9px}
+.hint b{color:#5c360a}
+.confmsg{font-size:12.5px;color:var(--muted);margin-bottom:12px}
+.savedtoast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:9px;font-size:13px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .25s}
+.savedtoast.show{opacity:1}
+.legendrow{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:10px}
+.legendrow span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+@media print{.topbar .btn,.segswitch,.subnav{display:none}.wrap{max-width:none}}
+
+/* station containers */
+.stntoolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.stntoolbar h3{font-size:15px}
+.stntoolbar .desc{font-size:11.5px;color:var(--muted)}
+.stngrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;align-items:start}
+@media(max-width:820px){.stngrid{grid-template-columns:1fr}}
+.stncard{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+.stncard.st-ok{border-top:3px solid var(--ok)}.stncard.st-warn{border-top:3px solid var(--warn)}.stncard.st-risk{border-top:3px solid var(--risk)}.stncard.st-idle{border-top:3px solid var(--idle)}
+.stncard-hd{padding:14px 16px;display:flex;align-items:flex-start;gap:10px}
+.stncard-name{font-size:15.5px;font-weight:680;letter-spacing:-.01em}
+.stncard-sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+.stncard-pod{text-align:right;line-height:1}
+.stncard-pod span{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.stncard-pod b{display:block;font-size:23px;font-weight:720;margin-top:3px}
+.stncard-pod.ok b{color:var(--ok)}.stncard-pod.warn b{color:var(--warn)}.stncard-pod.risk b{color:var(--risk)}.stncard-pod.idle b{color:var(--idle)}
+.stncard-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stncard-stats>div{background:var(--panel);padding:9px 6px;text-align:center}
+.stncard-stats span{display:block;font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.stncard-stats b{font-size:14.5px;font-weight:660;font-variant-numeric:tabular-nums}
+.stnsec .lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:11px 16px 5px;font-weight:700;display:flex;align-items:center;gap:8px}
+.stnsec .lbl .cnt{background:var(--line);color:var(--ink);border-radius:9px;padding:0 6px;font-size:10px}
+.mini{width:100%;border-collapse:collapse}
+.mini th,.mini td{padding:6px 16px;font-size:12px;text-align:right;white-space:nowrap}
+.mini th:first-child,.mini td:first-child{text-align:left}
+.mini thead th{font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);background:var(--panel);cursor:default}
+.mini tbody td{border-bottom:1px solid #f3f6f8}
+.mini tbody tr:last-child td{border-bottom:0}
+.mini .vend-cell{white-space:normal;color:var(--muted);font-size:11px}
+.courlist{max-height:290px;overflow:auto}
+.pngbtn{border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.pngbtn:hover{background:var(--brand-ink);border-color:var(--brand)}
+.pngbtn.mini-btn{padding:3px 9px;font-size:11px}
+.pngbtn svg{width:13px;height:13px}
+
+/* paste modal */
+.modal{position:fixed;inset:0;background:rgba(16,32,44,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal.on{display:flex}
+.modal-box{background:#fff;border-radius:14px;width:min(760px,100%);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-hd{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.modal-hd h3{font-size:15px}
+.modal-hd .x{margin-left:auto;border:0;background:transparent;font-size:20px;color:var(--muted);cursor:pointer;line-height:1}
+.modal-bd{padding:18px 20px;overflow:auto}
+.modal-bd p{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+.modal-bd textarea{width:100%;height:230px;border:1px solid var(--line);border-radius:9px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;resize:vertical}
+.modal-ft{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.modal-ft .msg{font-size:12px;color:var(--muted);margin-right:auto}
+.btn-primary{background:var(--brand);color:#fff;border:0;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-primary:hover{background:var(--brand-2)}
+.btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line);padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+
+/* pickup summary + collapse in station cards */
+.pickup{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+.pickup>div{background:#f7fafb;padding:8px 6px;text-align:center}
+.pickup span{display:block;font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.pickup b{font-size:13.5px;font-weight:660;font-variant-numeric:tabular-nums}
+.pickup .c2b-ok{color:var(--ok)}.pickup .c2b-bad{color:var(--risk)}
+.collapse-btn{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:7px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer}
+.collapse-btn:hover{background:var(--brand-ink)}
+.courlist.collapsed{display:none}
+.stncard.open{grid-column:1 / -1}
+.stncard.open .courlist{max-height:none;overflow-x:auto}
+.vgroup{cursor:pointer;user-select:none}
+.vgroup:hover td{background:#f2ecfd}
+.vg-caret{display:inline-block;width:0;height:0;border-left:5px solid var(--brand-2);border-top:4px solid transparent;border-bottom:4px solid transparent;margin-right:7px;transform:rotate(90deg);transition:transform .12s;vertical-align:middle}
+.vgroup.vg-collapsed .vg-caret{transform:rotate(0deg)}
+.vg-cnt{color:var(--muted);font-weight:600;margin-left:4px}
+.rt-row:hover td{background:#f8fafb}
+.rt-caret{display:inline-block;width:0;height:0;border-left:5px solid var(--muted);border-top:4px solid transparent;border-bottom:4px solid transparent;margin-right:7px;transition:transform .12s;vertical-align:middle}
+.rt-caret.open{transform:rotate(90deg)}
+.mini tr.routesub td{background:#fafcfd;color:var(--muted);font-size:11.5px}
+.mini tr.routesub td:first-child{padding-left:26px}
+.mini tr.routesub-hd td{background:#f2ecfd;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand-2);font-weight:700}
+.mini tr.routesub-hd td:first-child{padding-left:20px}
+.mini tr.vend-priority td{background:#f4efFd}
+.mini tr.vend-priority td:first-child{font-weight:700;color:var(--brand-2);border-left:3px solid var(--accent)}
+.vgroup.vg-priority td{background:#e9defc}
+.vgroup.vg-priority td:first-child{border-left:3px solid var(--accent);color:var(--brand-2)}
+.vgroup td{background:#f4f8f9;font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand-2);padding:5px 16px}
+.chip.rm{cursor:pointer;padding-right:6px}
+.chip.rm b{margin-left:6px;color:var(--risk);font-weight:800}
+.chip.rm:hover{background:var(--risk-bg)}
+#dispTable th,#dispTable td{text-align:left}
+.disp-mini{margin-top:8px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.disp-mini th,.disp-mini td{width:33%;padding:8px 12px}
+.disp-mini thead th{background:#f7fafb}
+#dispTable input[type=time]{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-family:inherit;font-size:13px;font-variant-numeric:tabular-nums}
+.seg-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:999px}
+.seg-badge.b2c{background:var(--brand-ink);color:var(--brand-2)}
+.seg-badge.b2b{background:#eef2f6;color:var(--idle)}
+
+/* summary sheet */
+#sumSheet{padding:20px 22px}
+.sum-hd{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid var(--brand);padding-bottom:12px;margin-bottom:16px}
+.sum-hd h2{font-size:19px;letter-spacing:-.01em}
+.sum-hd .stamp{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sum-kpis{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+@media(max-width:640px){.sum-kpis{grid-template-columns:1fr}}
+.sum-seg{border:1px solid var(--line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden}
+.sum-seg .strip{position:absolute;left:0;top:0;bottom:0;width:4px}
+.sum-seg.ok .strip{background:var(--ok)}.sum-seg.warn .strip{background:var(--warn)}.sum-seg.risk .strip{background:var(--risk)}
+.sum-seg .tag2{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sum-seg .big{font-size:30px;font-weight:720;letter-spacing:-.02em;margin:3px 0}
+.sum-seg.ok .big{color:var(--ok)}.sum-seg.warn .big{color:var(--warn)}.sum-seg.risk .big{color:var(--risk)}
+.sum-seg .row{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+.sum-seg .row b{color:var(--ink);font-variant-numeric:tabular-nums}
+.sum-score{width:100%;border-collapse:collapse;margin-bottom:16px}
+.sum-score th,.sum-score td{padding:8px 10px;font-size:12.5px;text-align:center;font-variant-numeric:tabular-nums}
+.sum-score th:first-child,.sum-score td:first-child{text-align:left;font-weight:600}
+.sum-score thead th{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+.sum-score thead .grp{border-bottom:2px solid var(--line);color:var(--brand-2);font-weight:700}
+.sum-score tbody td{border-bottom:1px solid #f1f4f7}
+.sum-score .sep{border-left:1px solid var(--line)}
+.dotc{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.dotc.ok{background:var(--ok)}.dotc.warn{background:var(--warn)}.dotc.risk{background:var(--risk)}.dotc.idle{background:#cbd5e1}
+.sum-attn{background:#f7fafb;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6}
+.sum-attn b{color:var(--brand-2)}
+.sum-attn .none{color:var(--ok);font-weight:600}
+
+/* all-stations landscape export */
+.export-sheet{font-family:inherit;color:var(--ink)}
+.export-hd{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid var(--brand);padding-bottom:12px;margin-bottom:16px}
+.export-hd h2{font-size:20px;letter-spacing:-.01em;margin:0}
+.export-hd span{margin-left:auto;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.export-grid{display:grid;gap:14px;align-items:start}
+.export-grid .stncard{box-shadow:none}
+.export-sheet .stncard{box-shadow:none}
+.cour-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;padding:0 2px}
+.cour-2col .mini{width:100%}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brandmark"><b>Operations Dashboard</b><span>B2B &amp; B2C delivery monitoring</span></div>
+  <div class="segswitch" id="segswitch">
+    <button data-seg="B2C" class="on"><small>Last mile</small>B2C</button>
+    <button data-seg="B2B"><small>Priority</small>B2B</button>
+  </div>
+  <div class="spacer"></div>
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none"/>
+  <button class="btn solid" id="pasteOpen">Paste data</button>
+  <button class="btn" onclick="document.getElementById('fileInput').click()">Import file</button>
+  <button class="btn" id="exportBtn">Export xlsx</button>
+  <div class="meta" id="meta"></div>
+</div>
+
+<div class="subnav" id="subnav">
+  <button data-tab="summary" class="on">Summary</button>
+  <button data-tab="overview">Overview</button>
+  <button data-tab="stations">Stations</button>
+  <button data-tab="routes">Routes</button>
+  <button data-tab="low">Low performers <span class="pillcount" id="pcLow">0</span></button>
+  <button data-tab="util">Utilization <span class="pillcount" id="pcUtil">0</span></button>
+  <button data-tab="delayed">Delayed 1st POD <span class="pillcount" id="pcDelay">0</span></button>
+  <button data-tab="conf">POD conflicts <span class="pillcount" id="pcConf">0</span></button>
+  <button data-tab="targets">Targets</button>
+</div>
+
+<div class="wrap">
+  <!-- SUMMARY -->
+  <div class="view on" data-view="summary">
+    <div class="stntoolbar">
+      <div><h3>Operations summary</h3><div class="desc">All 14 stations at report run time. Copy to WhatsApp or email in one click.</div></div>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap" class="no-snap">
+        <button class="pngbtn" id="sumCopy">Copy for WhatsApp</button>
+        <button class="pngbtn" id="sumShare" style="display:none">Share image</button>
+        <button class="pngbtn" id="sumDl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Download image</button>
+        <button class="pngbtn" id="sumEmail">Email</button>
+      </div>
+    </div>
+    <div id="summaryCard"></div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="view" data-view="overview">
+    <div class="stntoolbar no-snap">
+      <div><h3 id="ovToolTitle">Overview</h3><div class="desc">Segment KPIs, per-station performance and load split.</div></div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="pngbtn" id="dlOverview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Download overview</button>
+      </div>
+    </div>
+    <div id="overviewSheet">
+    <div class="kpis" id="kpis"></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="hd"><h3 id="chTitle">POD % by station</h3><span class="note" id="chNote"></span></div>
+        <div class="bd"><div class="chartbox"><canvas id="stnChart"></canvas></div>
+          <div class="legendrow">
+            <span><i class="dot" style="background:var(--ok)"></i>At / above target</span>
+            <span><i class="dot" style="background:var(--warn)"></i>Below target</span>
+            <span><i class="dot" style="background:var(--risk)"></i>At risk</span>
+            <span><i class="dot" style="background:var(--ink);opacity:.55"></i>Target line</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>Courier status split</h3></div>
+        <div class="bd"><div class="chartbox sm"><canvas id="statusChart"></canvas></div></div>
+      </div>
+    </div>
+    <div class="grid2" id="secondRow">
+      <div class="card">
+        <div class="hd"><h3 id="vendTitle">Vendor performance</h3><span class="note">weighted POD %</span></div>
+        <div class="bd"><div class="chartbox sm"><canvas id="vendChart"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3 id="thirdTitle">C2B pickup completion</h3><span class="note" id="thirdNote"></span></div>
+        <div class="bd"><div class="chartbox sm"><canvas id="thirdChart"></canvas></div></div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:18px">
+      <div class="hd"><h3 id="loadTitle">Load split by station</h3><span class="note" id="loadNote">share of total OFD</span></div>
+      <div class="bd"><div class="chartbox" id="loadBox"><canvas id="loadChart"></canvas></div></div>
+    </div>
+    <div class="card" style="margin-bottom:18px">
+      <div class="hd"><h3 id="ovStnTitle">Station performance</h3><span class="note">worst POD % first &middot; click a row to open it in the Stations tab</span></div>
+      <div class="scroll"><table id="ovStnTable" class="mini"></table></div>
+    </div>
+    </div>
+  </div>
+
+  <!-- STATIONS -->
+  <div class="view" data-view="stations">
+    <div class="stntoolbar">
+      <div><h3 id="stnTblTitle"></h3><div class="desc">Each station is its own container with its couriers. Conflict and idle rows are excluded from the figures.</div></div>
+      <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+        <label class="eyebrow">Vendor</label><select id="stnVend"></select>
+        <button class="pngbtn" id="dlAllStations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Download all stations</button>
+      </div>
+    </div>
+    <div class="stngrid" id="stnGrid"></div>
+  </div>
+
+  <!-- ROUTES -->
+  <div class="view" data-view="routes">
+    <div class="stntoolbar">
+      <div><h3 id="routeTitle"></h3><div class="desc">Each station broken down by route, worst POD % first.</div></div>
+      <div class="filterbar" style="margin-left:auto">
+        <label class="eyebrow">Vendor</label><select id="routeVend"></select>
+        <button class="pngbtn mini-btn no-snap" id="dlRoutes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
+      </div>
+    </div>
+    <div class="stngrid" id="routeGrid"></div>
+  </div>
+
+  <!-- LOW PERFORMERS -->
+  <div class="view" data-view="low">
+    <div class="stntoolbar">
+      <div><h3 id="lowTitle"></h3><div class="desc">Low performers grouped into a card per station.</div></div>
+      <div class="filterbar" style="margin-left:auto">
+        <label class="eyebrow">Station</label><select id="lowStn"></select>
+        <label class="eyebrow">Vendor</label><select id="lowVend"></select>
+        <button class="pngbtn mini-btn no-snap" id="dlLow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
+      </div>
+    </div>
+    <div class="stngrid" id="lowGrid"></div>
+  </div>
+
+  <!-- UTILIZATION -->
+  <div class="view" data-view="util">
+    <div class="hint" id="utilHint"></div>
+    <div class="tablecard">
+      <div class="hd"><h3>Below OFD target</h3><span class="desc" id="utilDesc"></span>
+        <div class="filterbar">
+          <label class="eyebrow">Station</label><select id="utilStn"></select>
+          <label class="eyebrow">Vendor</label><select id="utilVend"></select>
+          <button class="pngbtn mini-btn no-snap" id="dlUtil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
+        </div>
+      </div>
+      <div class="scroll"><table id="utilTable"></table></div>
+    </div>
+  </div>
+
+  <!-- DELAYED FIRST POD -->
+  <div class="view" data-view="delayed">
+    <div class="tablecard">
+      <div class="hd"><h3 id="delayTitle"></h3>
+        <div class="filterbar">
+          <label class="eyebrow">Over (min)</label><input type="number" class="num" id="delayMin" style="width:80px" value="120">
+          <label class="eyebrow">Station</label><select id="delayStn"></select>
+          <button class="pngbtn mini-btn no-snap" id="dlDelay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
+        </div>
+      </div>
+      <div class="scroll"><table id="delayTable"></table></div>
+    </div>
+  </div>
+
+  <!-- CONFLICTS -->
+  <div class="view" data-view="conf">
+    <div class="confmsg" id="confMsg"></div>
+    <div class="tablecard">
+      <div class="hd"><h3>POD conflict rows</h3><span class="desc">OFD = 0 with deliveries logged, or POD greater than OFD. Excluded from all POD % figures until resolved.</span></div>
+      <div class="scroll"><table id="confTable"></table></div>
+    </div>
+  </div>
+
+  <!-- TARGETS -->
+  <div class="view" data-view="targets">
+    <div class="confmsg">Edit any target and the whole console recalculates. Values are not saved to a server; they reset when the page reloads.</div>
+    <div class="tform">
+      <div class="tset">
+        <h3>B2C &middot; Last mile</h3><p>Delivery quality on the LMX population.</p>
+        <div class="frow"><label>POD % target</label><input type="number" class="num" id="t_b2c_pod_t"></div>
+        <div class="frow"><label>POD % risk floor</label><input type="number" class="num" id="t_b2c_pod_r"></div>
+        <div class="frow"><label>C2B pickup target</label><input type="number" class="num" id="t_b2c_c2b"></div>
+      </div>
+      <div class="tset">
+        <h3>B2B &middot; Priority</h3><p>PD population. POD % computed after conflict rows are removed.</p>
+        <div class="frow"><label>POD % target</label><input type="number" class="num" id="t_b2b_pod_t"></div>
+        <div class="frow"><label>POD % risk floor</label><input type="number" class="num" id="t_b2b_pod_r"></div>
+      </div>
+      <div class="tset">
+        <h3>Utilization (OFD)</h3><p>B2C only. Tick the vendors that need an OFD target and set each target. Unticked vendors are never flagged.</p>
+        <div id="ofdVendorList" class="ofd-list"></div>
+      </div>
+      <div class="tset">
+        <h3>Excluded staff</h3><p>Employee numbers listed here are removed from every figure, chart, station, and list across both tools.</p>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <input type="text" id="exclInput" placeholder="Emp # (comma or space separated)" style="flex:1">
+          <button class="btn-primary" id="exclAdd" style="padding:8px 14px">Exclude</button>
+        </div>
+        <div class="vendorchips" id="exclChips"></div>
+        <p id="exclEmpty" style="margin-top:10px">No staff excluded. The full population is in the report.</p>
+      </div>
+    </div>
+    <div class="tset" style="margin-top:16px">
+      <h3>Courier dispatch time</h3><p>Daily dispatch time per city, for B2C and B2B. Held in the page and written into the xlsx export.</p>
+      <table id="dispTable" class="mini disp-mini"></table>
+    </div>
+  </div>
+</div>
+<div class="modal" id="pasteModal">
+  <div class="modal-box">
+    <div class="modal-hd"><h3>Paste Spanel data</h3><button class="x" id="pasteClose">&times;</button></div>
+    <div class="modal-bd">
+      <p>Copy the rows from the Spanel export or the portal, including the header row that has <b>Route</b> in it, and paste below. Tab or comma separated both work. Station, segment and city are derived from the route.</p>
+      <textarea id="pasteArea" placeholder="Employee&#9;ISP&#9;Route&#9;Out for delivery&#9;Delivered&#9;Assigned&#9;Pending PUP&#9;POD %&#9;PUP %&#9;PIN %&#9;Success Factor
+6370&#9;SMSA&#9;GIX 801&#9;60&#9;52&#9;2&#9;1&#9;86.00 %&#9;50.00 %&#9;97.00 %&#9;0.86"></textarea>
+    </div>
+    <div class="modal-ft">
+      <span class="msg" id="pasteMsg"></span>
+      <button class="btn-ghost" id="pasteCancel">Cancel</button>
+      <button class="btn-primary" id="pasteLoad">Load data</button>
+    </div>
+  </div>
+</div>
+<div class="savedtoast" id="toast"></div>
+
+<script>
+const SEED = [];
+if(window.ChartDataLabels){ Chart.register(window.ChartDataLabels); Chart.defaults.set('plugins.datalabels',{display:false}); }
+
+const PREFIX_CITY = {
+  KMX:'Khamis Mushayt', KMT:'Khamis Mushayt',
+  GIX:'Jazan', GIZ:'Jazan',
+  EAX:'Najran', EAM:'Najran',
+  MYX:'Muhayil', MYL:'Muhayil',
+  WAX:'Wadi Dawasir', WAE:'Wadi Dawasir',
+  BHX:'Bishah', BSH:'Bishah',
+  ANX:'Namas', ANS:'Namas'
+};
+const OFD_DEFAULT_VENDORS = ['SMSA','Mutairi PPH','Core Support PPH'];
+const CITIES = ['Khamis Mushayt','Jazan','Najran','Muhayil','Wadi Dawasir','Bishah','Namas'];
+const VSHORT = {'SMSA':'SMSA','Mutairi PPH':'Mutairi PPH','Mutairi':'Mutairi','Rapid Trend':'Rapid Trend','Ali Abdulla For General Service':'Ali Abdulla','Core Support PPH':'Core Support','G B E':'GBE','Al Rayyan Logistics':'Al Rayyan'};
+function shortV(v){ return VSHORT[v]||v; }
+const VPRIORITY={'SMSA':0,'Mutairi PPH':1,'Core Support PPH':2};
+function vendorOrder(vendors){
+  const pri=[], rest=[];
+  vendors.forEach(v=>{ if(v.isp in VPRIORITY) pri.push(v); else rest.push(v); });
+  pri.sort((a,b)=>VPRIORITY[a.isp]-VPRIORITY[b.isp]);
+  rest.sort((a,b)=>(b.podpct??-1)-(a.podpct??-1));
+  return pri.concat(rest);
+}
+let EXCLUDED = new Set();
+let DISPATCH = {};                 // station label -> "HH:MM"
+let DELAY_MIN = 120;               // first-POD delay threshold in minutes (2h)
+let courierOpen = {};              // station label -> bool (courier list expanded)
+let STN_VENDOR = '';               // stations tab vendor filter
+let courVendCollapsed = new Set();  // key station||vendor -> collapsed
+function cvKey(stn,isp){ return stn+'||'+isp; }
+function toggleCourVendor(stn,isp){ const k=cvKey(stn,isp); if(courVendCollapsed.has(k)) courVendCollapsed.delete(k); else courVendCollapsed.add(k); renderStations(); }
+
+let T = {
+  b2c_pod_t:85, b2c_pod_r:80, b2c_c2b:70,
+  b2b_pod_t:95, b2b_pod_r:90,
+  ofd_targets:{'SMSA':70,'Mutairi PPH':70,'Core Support PPH':70}
+};
+
+let ROWS=[];            // all derived courier rows
+let SEG='B2C';
+let TAB='summary';
+let charts={};
+let sortState={};       // per-table sort
+let openStations={};
+
+/* ---------- parsing helpers ---------- */
+function num(x){ if(x===null||x===undefined||x==='') return null; const n=parseFloat(String(x).replace(/,/g,'')); return isNaN(n)?null:n; }
+function pct(x){ if(x===null||x===undefined||x==='') return null; const n=parseFloat(String(x).replace('%','').replace(/,/g,'').trim()); return isNaN(n)?null:n; }
+function parseSF(x){ if(x===null||x===undefined||x==='') return null; const s=String(x).trim(); const hasP=s.includes('%'); let v=parseFloat(s.replace('%','').replace(/,/g,'').trim()); if(isNaN(v))return null; if(!hasP&&v<=1)v*=100; return v; }
+function parseMins(s){ if(s===null||s===undefined||s==='') return null; s=String(s).toLowerCase().trim(); const hm=s.match(/(\d+)\s*h/), mm=s.match(/(\d+)\s*m/); if(hm||mm) return (hm?+hm[1]:0)*60+(mm?+mm[1]:0); const n=parseFloat(s); return isNaN(n)?null:n; }
+function fmtMins(v){ if(v===null||v===undefined) return '—'; v=Math.round(v); const h=Math.floor(v/60), m=v%60; return h?h+'h '+m+'m':m+'m'; }
+
+function deriveRow(r){
+  const route=(r.Route||'').toString().trim();
+  const tok=route.split(/\s+/)[0]||'';
+  const prefix=tok.slice(0,3).toUpperCase();
+  const isX = prefix.length>=3 && prefix[2]==='X';
+  const seg = isX?'B2C':'B2B';
+  const city = PREFIX_CITY[prefix] || (prefix||'Unknown');
+  const known = !!PREFIX_CITY[prefix];
+  const station = seg==='B2C' ? city+' LMX' : city+' St';
+  const ofd=num(r.OFD), pod=num(r.POD);
+  const conflict = ( (ofd===0||ofd===null) && pod!==null && pod>0 ) || (ofd!==null && pod!==null && pod>ofd);
+  const assigned=num(r.Assigned)||0;
+  const emp=(r.Employee||'').toString();
+  return {
+    emp, isp:(r.ISP||'').toString().trim(), route,
+    prefix, seg, city, station, known,
+    ofd, pod, assigned, pendingPUP:num(r.PendingPUP),
+    podpct: pct(r.PODpct), puppct: pct(r.PUPpct), pinpct: pct(r.PINpct),
+    sf: parseSF(r.SF), conflict,
+    firstPodMin: parseMins(r.FirstPOD), started:(r.Started||'').toString(),
+    excluded: EXCLUDED.has(emp)
+  };
+}
+function loadRows(raw){ ROWS = raw.map(deriveRow).filter(r=>r.route); applyExclusions(); }
+function applyExclusions(){ ROWS.forEach(r=>r.excluded=EXCLUDED.has(r.emp)); }
+
+/* ---------- status ---------- */
+function podStatus(v,t,r){ if(v===null) return 'idle'; if(v>=t) return 'ok'; if(v>=r) return 'warn'; return 'risk'; }
+function tgt(){ return SEG==='B2C' ? {t:T.b2c_pod_t,r:T.b2c_pod_r} : {t:T.b2b_pod_t,r:T.b2b_pod_r}; }
+
+/* ---------- aggregation ---------- */
+function segRows(){ return ROWS.filter(r=>r.seg===SEG && !r.excluded); }
+function scored(){ return segRows().filter(r=>!r.conflict && r.ofd!==null && r.ofd>0); } // rows valid for POD% (real deliveries out)
+function idleRows(){ return segRows().filter(r=>!r.conflict && (r.ofd===null||r.ofd===0) && (r.pod===null||r.pod===0)); }
+
+function stationAgg(vendorFilter){
+  const g={};
+  let rows=scored();
+  if(vendorFilter) rows=rows.filter(r=>r.isp===vendorFilter);
+  rows.forEach(r=>{
+    const k=r.station;
+    if(!g[k]) g[k]={station:k,city:r.city,crr:0,ofd:0,pod:0,sfSum:0,sfN:0,risk:0,vend:{},couriers:[],
+      asg:0,pend:0,pkCrr:0,fpSum:0,fpN:0};
+    const s=g[k]; s.crr++; s.ofd+=r.ofd||0; s.pod+=r.pod||0; s.couriers.push(r);
+    if(r.assigned>0){ s.asg+=r.assigned; s.pend+=(r.pendingPUP||0); s.pkCrr++; }
+    if(r.firstPodMin!==null && r.firstPodMin>0){ s.fpSum+=r.firstPodMin; s.fpN++; }
+    if(r.sf!==null){s.sfSum+=r.sf;s.sfN++;}
+    const st=podStatus(r.podpct,tgt().t,tgt().r); if(st==='risk')s.risk++;
+    const v=r.isp||'—';
+    if(!s.vend[v]) s.vend[v]={isp:v,crr:0,ofd:0,pod:0,sfSum:0,sfN:0,risk:0};
+    const vv=s.vend[v]; vv.crr++; vv.ofd+=r.ofd||0; vv.pod+=r.pod||0;
+    if(r.sf!==null){vv.sfSum+=r.sf;vv.sfN++;} if(st==='risk')vv.risk++;
+  });
+  return Object.values(g).map(s=>{
+    s.podpct = s.ofd>0 ? s.pod/s.ofd*100 : null;
+    s.sf = s.sfN? s.sfSum/s.sfN : null;
+    s.pickedUp = s.asg - s.pend;
+    s.pupPct = s.asg>0 ? s.pickedUp/s.asg*100 : null;
+    s.firstPodAvg = s.fpN ? s.fpSum/s.fpN : null;
+    s.vendors = Object.values(s.vend).map(v=>{ v.podpct=v.ofd>0?v.pod/v.ofd*100:null; v.sf=v.sfN?v.sfSum/v.sfN:null; return v; })
+      .sort((a,b)=>b.crr-a.crr);
+    return s;
+  }).sort((a,b)=>(a.podpct??999)-(b.podpct??999));
+}
+
+function fmtPct(v,d){ return v===null||v===undefined?'—':v.toFixed(d===undefined?1:d)+'%'; }
+function podCls(v){ if(v===null)return ''; const g=tgt(); return v>=g.t?'pod-ok':(v>=g.r?'pod-warn':'pod-risk'); }
+
+/* ---------- KPIs ---------- */
+function renderKPIs(){
+  const box=document.getElementById('kpis');
+  const rows=scored(), sr=segRows();
+  const ofd=rows.reduce((a,r)=>a+(r.ofd||0),0);
+  const pod=rows.reduce((a,r)=>a+(r.pod||0),0);
+  const wpod = ofd>0? pod/ofd*100 : null;
+  const g=tgt();
+  const stns=stationAgg();
+  const onTarget=stns.filter(s=>s.podpct!==null&&s.podpct>=g.t).length;
+  const atRisk=rows.filter(r=>r.podpct!==null&&r.podpct<g.r).length;
+  const sfVals=rows.filter(r=>r.sf!==null).map(r=>r.sf);
+  const avgSF=sfVals.length?sfVals.reduce((a,b)=>a+b,0)/sfVals.length:null;
+  const conf=sr.filter(r=>r.conflict).length;
+  const idle=idleRows().length;
+
+  let cards=[
+    kpi('Active couriers', sr.length, '', rows.length+' scored'+(idle?' &middot; '+idle+' idle':'')+(conf?' &middot; '+conf+' conflict':''), ''),
+    kpi('Weighted POD %', fmtPct(wpod), '', 'target '+g.t+'%', clsFor(wpod,g)),
+    kpi('Stations on target', onTarget+' <small>/ '+stns.length+'</small>', '', 'at or above '+g.t+'%', onTarget===stns.length?'ok':(onTarget>=stns.length/2?'warn':'risk')),
+    kpi('Couriers at risk', atRisk, '', 'below '+g.r+'% POD', atRisk===0?'ok':(atRisk<=5?'warn':'risk')),
+    kpi('Avg success factor', fmtPct(avgSF), '', 'unweighted mean', '')
+  ];
+  if(SEG==='B2C'){
+    const withA=rows.filter(r=>r.assigned>0);
+    const c2bVals=withA.filter(r=>r.puppct!==null).map(r=>r.puppct);
+    const c2b=c2bVals.length?c2bVals.reduce((a,b)=>a+b,0)/c2bVals.length:null;
+    cards.push(kpi('C2B pickup', fmtPct(c2b), '', 'target '+T.b2c_c2b+'% &middot; '+withA.length+' assigned', c2b===null?'':(c2b>=T.b2c_c2b?'ok':(c2b>=T.b2c_c2b-10?'warn':'risk'))));
+  }
+  box.innerHTML=cards.join('');
+}
+function clsFor(v,g){ if(v===null)return ''; return v>=g.t?'ok':(v>=g.r?'warn':'risk'); }
+function kpi(lab,val,unit,sub,cls){
+  return '<div class="kpi '+(cls||'')+'"><div class="strip"></div><div class="lab">'+lab+'</div><div class="val num">'+val+'</div><div class="sub">'+sub+'</div></div>';
+}
+
+/* ---------- charts ---------- */
+const CANVAS={stn:'stnChart',status:'statusChart',vend:'vendChart',third:'thirdChart',load:'loadChart'};
+function destroy(id){
+  if(charts[id]){ try{charts[id].destroy();}catch(e){} delete charts[id]; }
+  const ex = (typeof Chart!=='undefined' && Chart.getChart) ? Chart.getChart(CANVAS[id]) : null;
+  if(ex){ try{ex.destroy();}catch(e){} }
+}
+const STC={ok:'#15803d',warn:'#b45309',risk:'#b91c1c',line:'#16202c'};
+function renderCharts(){
+  const g=tgt(), stns=stationAgg();
+  // station bars + target line
+  destroy('stn');
+  const labels=stns.map(s=>s.city);
+  const vals=stns.map(s=>s.podpct);
+  const colors=stns.map(s=> s.podpct===null?'#cbd5e1':(s.podpct>=g.t?STC.ok:(s.podpct>=g.r?STC.warn:STC.risk)));
+  charts.stn=new Chart(document.getElementById('stnChart'),{
+    data:{labels,datasets:[
+      {type:'bar',label:'POD %',data:vals,backgroundColor:colors,borderRadius:5,maxBarThickness:46,order:2},
+      {type:'line',label:'Target',data:labels.map(()=>g.t),borderColor:STC.line,borderWidth:1.5,borderDash:[5,4],pointRadius:0,order:1}
+    ]},
+    options:baseOpts({yMax:110,yTitle:'POD %'})
+  });
+  document.getElementById('chNote').textContent='target '+g.t+'% &middot; risk below '+g.r+'%';
+
+  // status donut
+  destroy('status');
+  const rows=scored();
+  const c={ok:0,warn:0,risk:0};
+  rows.forEach(r=>{const s=podStatus(r.podpct,g.t,g.r); if(s!=='idle')c[s]++;});
+  charts.status=new Chart(document.getElementById('statusChart'),{
+    type:'doughnut',
+    data:{labels:['At / above target','Below target','At risk'],datasets:[{data:[c.ok,c.warn,c.risk],backgroundColor:[STC.ok,STC.warn,STC.risk],borderWidth:2,borderColor:'#fff'}]},
+    options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:11,font:{size:11.5}}},datalabels:{display:true,color:'#fff',font:{weight:'700',size:13},formatter:v=>v>0?v:''}},maintainAspectRatio:false}
+  });
+
+  // vendor perf
+  destroy('vend');
+  const vg={};
+  rows.forEach(r=>{const v=r.isp||'—'; if(!vg[v])vg[v]={ofd:0,pod:0,crr:0}; vg[v].ofd+=r.ofd||0; vg[v].pod+=r.pod||0; vg[v].crr++;});
+  const vArr=Object.entries(vg).map(([k,v])=>({isp:k,pod:v.ofd>0?v.pod/v.ofd*100:0,crr:v.crr})).sort((a,b)=>b.crr-a.crr);
+  charts.vend=new Chart(document.getElementById('vendChart'),{
+    type:'bar',
+    data:{labels:vArr.map(v=>v.isp),datasets:[
+      {label:'POD %',data:vArr.map(v=>v.pod),backgroundColor:vArr.map(v=>v.pod>=g.t?STC.ok:(v.pod>=g.r?STC.warn:STC.risk)),borderRadius:5,maxBarThickness:40},
+      {type:'line',label:'Target',data:vArr.map(()=>g.t),borderColor:STC.line,borderWidth:1.5,borderDash:[5,4],pointRadius:0}
+    ]},
+    options:baseOpts({yMax:110,yTitle:'POD %',rotate:true})
+  });
+
+  // third chart: C2B (B2C) or SF distribution (B2B)
+  destroy('third');
+  if(SEG==='B2C'){
+    document.getElementById('thirdTitle').textContent='C2B pickup completion by station';
+    document.getElementById('thirdNote').textContent='target '+T.b2c_c2b+'% &middot; assigned couriers only';
+    const cg={};
+    rows.filter(r=>r.assigned>0&&r.puppct!==null).forEach(r=>{if(!cg[r.city])cg[r.city]={s:0,n:0}; cg[r.city].s+=r.puppct; cg[r.city].n++;});
+    const arr=Object.entries(cg).map(([k,v])=>({city:k,pup:v.s/v.n}));
+    charts.third=new Chart(document.getElementById('thirdChart'),{
+      type:'bar',
+      data:{labels:arr.map(a=>a.city),datasets:[
+        {label:'C2B %',data:arr.map(a=>a.pup),backgroundColor:arr.map(a=>a.pup>=T.b2c_c2b?STC.ok:STC.risk),borderRadius:5,maxBarThickness:40},
+        {type:'line',label:'Target',data:arr.map(()=>T.b2c_c2b),borderColor:STC.line,borderWidth:1.5,borderDash:[5,4],pointRadius:0}
+      ]},
+      options:baseOpts({yMax:100,yTitle:'C2B %',rotate:true})
+    });
+    if(arr.length===0){ destroy('third'); }
+  } else {
+    document.getElementById('thirdTitle').textContent='Success factor by station';
+    document.getElementById('thirdNote').textContent='unweighted mean SF';
+    const arr=stns.map(s=>({city:s.city,sf:s.sf})).filter(a=>a.sf!==null);
+    charts.third=new Chart(document.getElementById('thirdChart'),{
+      type:'bar',
+      data:{labels:arr.map(a=>a.city),datasets:[{label:'SF %',data:arr.map(a=>a.sf),backgroundColor:'#6d28d9',borderRadius:5,maxBarThickness:40}]},
+      options:baseOpts({yMax:110,yTitle:'SF %',rotate:true,legend:false})
+    });
+  }
+
+  // load split by vendor within each station (100% stacked)
+  destroy('load');
+  const segStns=[...stns].filter(s=>s.ofd>0);
+  const vtot={};
+  segStns.forEach(s=>s.vendors.forEach(v=>{ if(v.ofd>0) vtot[v.isp]=(vtot[v.isp]||0)+v.ofd; }));
+  const vendors=Object.keys(vtot).sort((a,b)=>vtot[b]-vtot[a]);
+  const PAL=['#6d28d9','#ea580c','#7c3aed','#c2410c','#9333ea','#f59e0b','#a78bfa','#b45309'];
+  const lds=vendors.map((v,i)=>{
+    const ofdArr=segStns.map(s=>{ const f=s.vendors.find(x=>x.isp===v); return f?f.ofd:0; });
+    const crrArr=segStns.map(s=>{ const f=s.vendors.find(x=>x.isp===v); return f?f.crr:0; });
+    const shareArr=segStns.map((s,idx)=> s.ofd>0 ? ofdArr[idx]/s.ofd*100 : 0);
+    return {label:shortV(v),data:shareArr,ofd:ofdArr,crr:crrArr,backgroundColor:PAL[i%PAL.length],stack:'load',borderWidth:0,maxBarThickness:34};
+  });
+  document.getElementById('loadTitle').textContent=(SEG==='B2C'?'B2C':'B2B')+' load split by vendor';
+  document.getElementById('loadNote').textContent='share of each station OFD and courier count per vendor';
+  document.getElementById('loadBox').style.height=Math.max(190,segStns.length*42+64)+'px';
+  charts.load=new Chart(document.getElementById('loadChart'),{
+    type:'bar',
+    data:{labels:segStns.map(s=>s.station),datasets:lds},
+    options:{indexAxis:'y',maintainAspectRatio:false,
+      plugins:{legend:{display:true,position:'top',align:'start',labels:{boxWidth:11,font:{size:10.5},usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.dataset.ofd[c.dataIndex]+' OFD · '+c.dataset.crr[c.dataIndex]+' couriers ('+Math.round(c.parsed.x)+'%)'}},
+        datalabels:{display:c=>c.dataset.data[c.dataIndex]>=9,color:'#fff',font:{size:9,weight:'700'},
+          formatter:(v,c)=>{ const n=c.dataset.crr[c.dataIndex]; return Math.round(v)+'%'+(n?' · '+n+'c':''); }}},
+      scales:{x:{stacked:true,min:0,max:100,grid:{color:'#eef2f6'},title:{display:true,text:'% of station OFD',font:{size:10}},ticks:{font:{size:10},callback:v=>v+'%'}},
+        y:{stacked:true,grid:{display:false},ticks:{font:{size:11}}}}}
+  });
+}
+function renderOverviewStations(){
+  const g=tgt(); const stns=stationAgg();
+  document.getElementById('ovStnTitle').textContent=(SEG==='B2C'?'B2C':'B2B')+' station performance';
+  const t=document.getElementById('ovStnTable');
+  if(stns.length===0){ t.innerHTML='<tbody><tr><td class="empty" colspan="10">No stations in this population.</td></tr></tbody>'; return; }
+  let h='<thead><tr><th>Station</th><th>Couriers</th><th>OFD</th><th>Load %</th><th>POD</th><th>POD %</th><th>SF</th><th>C2B %</th><th>At risk</th><th>Status</th></tr></thead><tbody>';
+  const totOFD=stns.reduce((a,s)=>a+(s.ofd||0),0);
+  const maxShare=Math.max(...stns.map(s=>totOFD?s.ofd/totOFD:0),0.0001);
+  stns.forEach(s=>{
+    const st=s.podpct===null?'idle':(s.podpct>=g.t?'ok':(s.podpct>=g.r?'warn':'risk'));
+    const stTxt=st==='ok'?'On target':(st==='warn'?'Below target':(st==='risk'?'At risk':'No volume'));
+    const share=totOFD?s.ofd/totOFD*100:0;
+    const barW=Math.round((share/100)/maxShare*46);
+    const loadCell='<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end"><span>'+share.toFixed(0)+'%</span><i style="display:inline-block;width:'+barW+'px;height:7px;background:var(--brand);border-radius:3px"></i></div>';
+    h+='<tr class="ovrow" style="cursor:pointer" data-stn="'+s.station+'"><td style="font-weight:600">'+s.station+'</td>'+
+       '<td>'+s.crr+'</td><td>'+s.ofd+'</td><td>'+loadCell+'</td><td>'+s.pod+'</td>'+
+       '<td class="'+podCls(s.podpct)+'">'+fmtPct(s.podpct,1)+'</td><td>'+fmtPct(s.sf,0)+'</td><td>'+fmtPct(s.pupPct,0)+'</td>'+
+       '<td>'+(s.risk||'0')+'</td><td><span class="tag '+st+'">'+stTxt+'</span></td></tr>';
+  });
+  h+='</tbody>'; t.innerHTML=h;
+  t.querySelectorAll('.ovrow').forEach(tr=>tr.onclick=()=>{
+    const k=tr.dataset.stn; courierOpen[k]=true; gotoTab('stations');
+    setTimeout(()=>{ const el=document.getElementById('card_'+safeId(k)); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); },60);
+  });
+}
+function gotoTab(tab){
+  TAB=tab;
+  document.querySelectorAll('#subnav button').forEach(x=>x.classList.toggle('on',x.dataset.tab===tab));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.dataset.view===tab));
+  renderTab();
+}
+function baseOpts(o){
+  return {maintainAspectRatio:false,
+    layout:{padding:{top:16}},
+    plugins:{
+      legend:{display:o.legend!==false,position:'top',align:'end',labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},
+      tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y===null?'—':c.parsed.y.toFixed(1)+'%')}},
+      datalabels:{
+        display:c=>{ if(c.dataset.type==='line') return false; const v=c.dataset.data[c.dataIndex]; return v!==null && v!==undefined && v>0; },
+        anchor:'end',align:'end',offset:1,clamp:true,color:'#334155',font:{size:9.5,weight:'700'},
+        formatter:v=>(v===null||v===undefined)?'':Number(v).toFixed(0)
+      }
+    },
+    scales:{
+      x:{grid:{display:false},ticks:{font:{size:11},maxRotation:o.rotate?40:0,minRotation:o.rotate?40:0}},
+      y:{beginAtZero:true,max:o.yMax,grid:{color:'#eef2f6'},title:{display:!!o.yTitle,text:o.yTitle,font:{size:10}},ticks:{font:{size:10}}}
+    }};
+}
+
+/* ---------- routes ---------- */
+function routeAgg(vendorFilter){
+  let rows=scored();
+  if(vendorFilter) rows=rows.filter(r=>r.isp===vendorFilter);
+  const byStation={};
+  rows.forEach(r=>{
+    if(!byStation[r.station]) byStation[r.station]={station:r.station,routes:{}};
+    const st=byStation[r.station];
+    if(!st.routes[r.route]) st.routes[r.route]={route:r.route,crr:0,ofd:0,pod:0,sfSum:0,sfN:0,vend:{},couriers:[]};
+    const rt=st.routes[r.route];
+    rt.crr++; rt.ofd+=r.ofd||0; rt.pod+=r.pod||0; rt.couriers.push(r);
+    if(r.sf!==null){rt.sfSum+=r.sf;rt.sfN++;}
+    rt.vend[r.isp]=(rt.vend[r.isp]||0)+1;
+  });
+  return Object.values(byStation).map(st=>{
+    st.routeList=Object.values(st.routes).map(rt=>{
+      rt.podpct=rt.ofd>0?rt.pod/rt.ofd*100:null;
+      rt.sf=rt.sfN?rt.sfSum/rt.sfN:null;
+      rt.avg=rt.crr>0?rt.ofd/rt.crr:0;
+      const vs=Object.keys(rt.vend);
+      rt.vendor=vs.length===1?vs[0]:'Mixed';
+      return rt;
+    }).sort((a,b)=>(a.podpct??999)-(b.podpct??999));
+    st.routeCount=st.routeList.length;
+    st.worst=st.routeList.length?(st.routeList[0].podpct??999):999;
+    return st;
+  }).sort((a,b)=>a.worst-b.worst);
+}
+let routeOpen=new Set();
+function rKey(st,rt){ return st+'||'+rt; }
+function toggleRoute(st,rt){ const k=rKey(st,rt); if(routeOpen.has(k)) routeOpen.delete(k); else routeOpen.add(k); renderRoutes(); }
+function vpRank(isp){ return (isp in VPRIORITY)?VPRIORITY[isp]:100; }
+function routeCardHTML(st,g,isOpen){
+  const worst=st.routeList[0]?st.routeList[0].podpct:null;
+  const wcls=worst===null?'idle':(worst>=g.t?'ok':(worst>=g.r?'warn':'risk'));
+  let body='';
+  st.routeList.forEach(rt=>{
+    const rc=rt.podpct===null?'':(rt.podpct>=g.t?'pod-ok':(rt.podpct>=g.r?'pod-warn':'pod-risk'));
+    const multi=rt.crr>1;
+    const open=multi && isOpen(st.station,rt.route);
+    const caret=multi?'<span class="rt-caret'+(open?' open':'')+'"></span>':'';
+    const click=multi?' class="rt-row" style="cursor:pointer" onclick="toggleRoute(\''+st.station.replace(/'/g,"")+'\',\''+rt.route.replace(/'/g,"")+'\')"':'';
+    body+='<tr'+click+'><td>'+caret+rt.route+'</td><td class="vend-cell">'+shortV(rt.vendor)+'</td><td>'+rt.crr+'</td><td>'+rt.ofd+'</td><td>'+rt.avg.toFixed(1)+'</td><td>'+rt.pod+'</td><td class="'+rc+'">'+fmtPct(rt.podpct,0)+'</td><td>'+fmtPct(rt.sf,0)+'</td></tr>';
+    if(open){
+      const cs=[...rt.couriers].sort((a,b)=> vpRank(a.isp)-vpRank(b.isp) || (a.podpct??999)-(b.podpct??999));
+      const multiVendor = new Set(cs.map(c=>c.isp)).size>1;
+      let lastV=null;
+      cs.forEach(c=>{
+        if(multiVendor && c.isp!==lastV){ body+='<tr class="routesub-hd"><td colspan="8">'+shortV(c.isp)+'</td></tr>'; lastV=c.isp; }
+        const cc=c.podpct===null?'':(c.podpct>=g.t?'pod-ok':(c.podpct>=g.r?'pod-warn':'pod-risk'));
+        body+='<tr class="routesub"><td>'+c.emp+'</td><td class="vend-cell">'+shortV(c.isp)+'</td><td></td><td>'+(c.ofd??'—')+'</td><td></td><td>'+(c.pod??'—')+'</td><td class="'+cc+'">'+fmtPct(c.podpct,0)+'</td><td>'+fmtPct(c.sf,0)+'</td></tr>';
+      });
+    }
+  });
+  return '<div class="stncard st-'+wcls+'" id="routecard_'+safeId(st.station)+'">'+
+    '<div class="stncard-hd"><div><div class="stncard-name">'+st.station+'</div><div class="stncard-sub">'+st.routeCount+' route'+(st.routeCount>1?'s':'')+' &middot; tap a multi-courier route</div></div>'+
+    '<div class="stncard-pod '+wcls+'"><span>Worst</span><b>'+fmtPct(worst,0)+'</b></div></div>'+
+    '<div class="stnsec"><div class="scroll"><table class="mini"><thead><tr><th>Route</th><th>Vendor</th><th>Crr</th><th>OFD</th><th>Avg OFD</th><th>POD</th><th>POD%</th><th>SF</th></tr></thead><tbody>'+body+'</tbody></table></div></div></div>';
+}
+function renderRoutes(){
+  document.getElementById('routeTitle').textContent=(SEG==='B2C'?'B2C':'B2B')+' route analysis by station';
+  const vSel=document.getElementById('routeVend');
+  fillSel(vSel,['All vendors',...new Set(scored().map(r=>r.isp))],renderRoutes);
+  const vf=(vSel.value&&vSel.value!=='All vendors')?vSel.value:'';
+  const g=tgt();
+  const stns=routeAgg(vf);
+  const grid=document.getElementById('routeGrid');
+  if(!stns.length){ grid.innerHTML='<div class="empty">'+(ROWS.length?'No routes match this filter.':'No data loaded. Use Paste data to import a Spanel export.')+'</div>'; return; }
+  grid.innerHTML=stns.map(st=>routeCardHTML(st,g,(s,r)=>routeOpen.has(rKey(s,r)))).join('');
+}
+async function downloadRoutes(){
+  const vSel=document.getElementById('routeVend');
+  const vf=(vSel.value&&vSel.value!=='All vendors')?vSel.value:'';
+  const g=tgt(); const stns=routeAgg(vf);
+  if(!stns.length){ alert('No routes to export.'); return; }
+  const n=stns.length;
+  const cols=n<=1?1:(n>=5?3:2);
+  const cardW=460, gap=14, pad=22;
+  const width=cols*cardW+(cols-1)*gap+pad*2;
+  const wrap=document.createElement('div');
+  wrap.className='export-sheet';
+  wrap.style.cssText='position:fixed;left:-20000px;top:0;width:'+width+'px;background:#fff;padding:'+pad+'px';
+  wrap.innerHTML='<div class="export-hd"><h2>'+(SEG==='B2C'?'B2C':'B2B')+' route analysis'+(vf?' &middot; '+shortV(vf):'')+'</h2><span>'+nowStamp()+'</span></div>'+
+    '<div class="export-grid" style="grid-template-columns:repeat('+cols+',1fr)">'+stns.map(st=>routeCardHTML(st,g,()=>true)).join('')+'</div>';
+  document.body.appendChild(wrap); void wrap.offsetHeight;
+  try{ wrap.querySelectorAll('.scroll').forEach(s=>s.style.overflow='visible'); await snapNode(wrap,'Route_analysis_'+SEG+'_'+dstamp()); }
+  catch(err){ alert('Export failed: '+err.message); }
+  finally{ document.body.removeChild(wrap); }
+}
+
+/* ---------- stations as containers ---------- */
+function safeId(s){ return s.replace(/[^a-z0-9]/gi,'_'); }
+
+function vendorRowsHTML(ordVend,g){
+  return ordVend.map(v=>{
+    const vc=v.podpct===null?'':(v.podpct>=g.t?'pod-ok':(v.podpct>=g.r?'pod-warn':'pod-risk'));
+    const avg=v.crr>0?(v.ofd/v.crr):0;
+    const pri=(v.isp in VPRIORITY)?' class="vend-priority"':'';
+    return '<tr'+pri+'><td class="vend-cell">'+shortV(v.isp)+'</td><td>'+v.crr+'</td><td>'+v.ofd+'</td><td>'+avg.toFixed(1)+'</td><td>'+v.pod+'</td><td class="'+vc+'">'+fmtPct(v.podpct,0)+'</td><td>'+fmtPct(v.sf,0)+'</td></tr>';
+  }).join('');
+}
+// station card down to vendor level only (no courier list) - used for the all-stations export
+function summaryCardHTML(s,g){
+  const st = s.podpct===null?'idle':(s.podpct>=g.t?'ok':(s.podpct>=g.r?'warn':'risk'));
+  const stTxt = st==='ok'?'On target':(st==='warn'?'Below target':(st==='risk'?'At risk':'No volume'));
+  const ordVend=vendorOrder(s.vendors); const vN=ordVend.length;
+  const c2bCls = s.pupPct===null?'':(s.pupPct>=T.b2c_c2b?'c2b-ok':'c2b-bad');
+  const isB2C = SEG==='B2C';
+  return '<div class="stncard st-'+st+'">'+
+    '<div class="stncard-hd">'+
+      '<div><div class="stncard-name">'+s.station+'</div><div class="stncard-sub">'+s.crr+' couriers &middot; '+vN+' vendor'+(vN>1?'s':'')+' &middot; '+stTxt+'</div></div>'+
+      '<div class="stncard-pod '+st+'"><span>POD</span><b>'+fmtPct(s.podpct,1)+'</b></div>'+
+    '</div>'+
+    '<div class="stncard-stats">'+
+      '<div><span>Couriers</span><b>'+s.crr+'</b></div><div><span>OFD</span><b>'+s.ofd+'</b></div>'+
+      '<div><span>POD</span><b>'+s.pod+'</b></div><div><span>SF</span><b>'+fmtPct(s.sf,0)+'</b></div>'+
+      '<div><span>At risk</span><b>'+(s.risk||'0')+'</b></div>'+
+    '</div>'+
+    (isB2C?'<div class="pickup"><div><span>Pickup crr</span><b>'+s.pkCrr+'</b></div><div><span>Assigned</span><b>'+s.asg+'</b></div>'+
+      '<div><span>Pending</span><b>'+s.pend+'</b></div><div><span>C2B %</span><b class="'+c2bCls+'">'+fmtPct(s.pupPct,0)+'</b></div></div>':'')+
+    (isB2C?'<div class="stnsec"><div class="lbl">By vendor <span class="cnt">'+vN+'</span></div>'+
+      '<table class="mini"><thead><tr><th>Vendor</th><th>Crr</th><th>OFD</th><th>Avg OFD</th><th>POD</th><th>POD%</th><th>SF</th></tr></thead><tbody>'+vendorRowsHTML(ordVend,g)+'</tbody></table></div>':'')+
+  '</div>';
+}
+function courierRowHTML(r,g,isB2C){
+  const rc=r.podpct===null?'':(r.podpct>=g.t?'pod-ok':(r.podpct>=g.r?'pod-warn':'pod-risk'));
+  let pickCells='';
+  if(isB2C){ const has=r.assigned>0; const c2bcls=has?(r.puppct>=T.b2c_c2b?'pod-ok':'pod-risk'):''; pickCells='<td>'+(has?r.assigned:'—')+'</td><td class="'+c2bcls+'">'+(has?fmtPct(r.puppct,0):'—')+'</td>'; }
+  return '<tr><td>'+r.route+'</td><td class="vend-cell">'+r.emp+'</td><td>'+(r.ofd??'—')+'</td><td>'+(r.pod??'—')+'</td><td class="'+rc+'">'+fmtPct(r.podpct,0)+'</td>'+pickCells+'<td>'+fmtPct(r.sf,0)+'</td></tr>';
+}
+function courGroupRow(isp,colspan){ return '<tr class="vgroup'+((isp in VPRIORITY)?' vg-priority':'')+'"><td colspan="'+colspan+'">'+shortV(isp)+'</td></tr>'; }
+function courierListHTML(s,g,isB2C,twoCol){
+  const ordVend=vendorOrder(s.vendors);
+  const vrank={}; ordVend.forEach((v,i)=>vrank[v.isp]=i);
+  const cour=[...s.couriers].sort((a,b)=>(vrank[a.isp]??999)-(vrank[b.isp]??999)||(a.podpct??999)-(b.podpct??999));
+  const showGroups=ordVend.length>1;
+  const colspan=isB2C?8:6;
+  const head=isB2C?'<tr><th>Route</th><th>Emp</th><th>OFD</th><th>POD</th><th>POD%</th><th>Pick</th><th>C2B%</th><th>SF</th></tr>':'<tr><th>Route</th><th>Emp</th><th>OFD</th><th>POD</th><th>POD%</th><th>SF</th></tr>';
+  const items=[]; let lastV=null;
+  cour.forEach(r=>{ if(showGroups&&r.isp!==lastV){ items.push({group:r.isp}); lastV=r.isp; } items.push({r}); });
+  const tbl=(arr,prefixGroup)=>{
+    let b=prefixGroup?courGroupRow(prefixGroup,colspan):'';
+    b+=arr.map(x=> x.group? courGroupRow(x.group,colspan) : courierRowHTML(x.r,g,isB2C)).join('');
+    return '<table class="mini"><thead>'+head+'</thead><tbody>'+b+'</tbody></table>';
+  };
+  const lbl='<div class="lbl">Courier performance <span class="cnt">'+s.couriers.length+'</span></div>';
+  if(!twoCol) return '<div class="stnsec">'+lbl+'<div class="scroll">'+tbl(items)+'</div></div>';
+  const total=cour.length, half=Math.ceil(total/2);
+  let count=0, splitIdx=items.length;
+  for(let i=0;i<items.length;i++){ if(items[i].r){ count++; if(count===half){ splitIdx=i+1; break; } } }
+  const left=items.slice(0,splitIdx), right=items.slice(splitIdx);
+  const rightPrefix=(showGroups && right.length && right[0].r)? right[0].r.isp : null;
+  return '<div class="stnsec">'+lbl+'<div class="cour-2col">'+tbl(left)+tbl(right,rightPrefix)+'</div></div>';
+}
+function stationFullCardHTML(s,g,twoCol){
+  const isB2C=SEG==='B2C';
+  const top=summaryCardHTML(s,g);            // header + stats + pickup + by-vendor, closed div
+  const cour=courierListHTML(s,g,isB2C,twoCol);
+  return top.replace(/<\/div>$/, cour+'</div>');
+}
+async function snapNode(node,name){
+  const w=node.scrollWidth||node.offsetWidth, h=node.scrollHeight||node.offsetHeight;
+  let scale=2; const MAX=15000; if(w*scale>MAX||h*scale>MAX) scale=Math.max(1,Math.min(MAX/w,MAX/h));
+  const canvas=await html2canvas(node,{scale,backgroundColor:'#ffffff',useCORS:true,width:w,height:h,windowWidth:w,scrollX:0,scrollY:0});
+  const blob=await canvasToBlob(canvas);
+  if(!blob){ alert('Image export failed: empty canvas'); return; }
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.download=name+'.png'; a.href=url; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+async function downloadOverview(){
+  if(!ROWS.length){ alert('No data to export. Paste or import a Spanel export first.'); return; }
+  const el=document.getElementById('overviewSheet'); if(!el) return;
+  const hd=document.createElement('div');
+  hd.className='export-hd'; hd.style.marginBottom='16px';
+  hd.innerHTML='<h2>'+(SEG==='B2C'?'B2C last-mile':'B2B priority')+' overview</h2><span>'+nowStamp()+'</span>';
+  el.insertBefore(hd, el.firstChild);
+  try{ await snap(el,'Overview_'+SEG+'_'+dstamp()); }
+  catch(err){ alert('Export failed: '+err.message); }
+  finally{ el.removeChild(hd); }
+}
+async function downloadAllStations(){
+  const g=tgt(); const stns=stationAgg(STN_VENDOR);
+  if(!stns.length){ alert('No stations to export.'); return; }
+  const n=stns.length;
+  const cols = n<=1?1 : (n<=4? n : Math.ceil(n/2));   // 7 -> 4 cols (landscape, 2 rows)
+  const cardW=380, gap=14, pad=22;
+  const width = cols*cardW + (cols-1)*gap + pad*2;
+  const wrap=document.createElement('div');
+  wrap.className='export-sheet';
+  wrap.style.cssText='position:fixed;left:-20000px;top:0;width:'+width+'px;background:#fff;padding:'+pad+'px';
+  wrap.innerHTML='<div class="export-hd"><h2>'+(SEG==='B2C'?'B2C last-mile':'B2B priority')+' station summary'+(STN_VENDOR?' &middot; '+shortV(STN_VENDOR):'')+'</h2><span>'+nowStamp()+'</span></div>'+
+    '<div class="export-grid" style="grid-template-columns:repeat('+cols+',1fr)">'+stns.map(s=>summaryCardHTML(s,g)).join('')+'</div>';
+  document.body.appendChild(wrap);
+  void wrap.offsetHeight;
+  try{ await snapNode(wrap,'Stations_'+SEG+'_'+dstamp()); }
+  catch(err){ alert('Export failed: '+err.message); }
+  finally{ document.body.removeChild(wrap); }
+}
+
+function renderStations(){
+  document.getElementById('stnTblTitle').textContent=(SEG==='B2C'?'B2C last-mile':'B2B priority')+' stations';
+  const g=tgt();
+  // vendor filter dropdown
+  const vSel=document.getElementById('stnVend');
+  const allVends=[...new Set(scored().map(r=>r.isp))].sort();
+  fillSel(vSel,['All vendors',...allVends],renderStations);
+  STN_VENDOR = (vSel.value && vSel.value!=='All vendors') ? vSel.value : '';
+  const stns=stationAgg(STN_VENDOR); // already sorted worst POD% first
+  const grid=document.getElementById('stnGrid');
+  if(stns.length===0){ grid.innerHTML='<div class="empty">'+(ROWS.length?'No stations match this filter.':'No data loaded. Use Paste data to import a Spanel export.')+'</div>'; return; }
+  grid.innerHTML=stns.map(s=>{
+    const st = s.podpct===null?'idle':(s.podpct>=g.t?'ok':(s.podpct>=g.r?'warn':'risk'));
+    const stTxt = st==='ok'?'On target':(st==='warn'?'Below target':(st==='risk'?'At risk':'No volume'));
+    const ordVend=vendorOrder(s.vendors);
+    const vN=ordVend.length;
+    const vendRows=vendorRowsHTML(ordVend,g);
+    const vrank={}; ordVend.forEach((v,i)=>vrank[v.isp]=i);
+    const cour=[...s.couriers].sort((a,b)=> (vrank[a.isp]??999)-(vrank[b.isp]??999) || (a.podpct??999)-(b.podpct??999));
+    const isB2C = SEG==='B2C';
+    const courColspan = isB2C?8:6;
+    const stnEsc=s.station.replace(/'/g,"");
+    const showGroups = vN>1;
+    let courRows='';
+    ordVend.forEach(v=>{
+      const grp=cour.filter(r=>r.isp===v.isp);
+      if(!grp.length) return;
+      const vCollapsed = showGroups && courVendCollapsed.has(cvKey(s.station,v.isp));
+      if(showGroups){
+        courRows+='<tr class="vgroup'+(vCollapsed?' vg-collapsed':'')+((v.isp in VPRIORITY)?' vg-priority':'')+'" onclick="toggleCourVendor(\''+stnEsc+'\',\''+v.isp.replace(/'/g,"")+'\')">'+
+          '<td colspan="'+courColspan+'"><span class="vg-caret"></span>'+shortV(v.isp||'—')+' <span class="vg-cnt">'+grp.length+'</span></td></tr>';
+      }
+      if(vCollapsed) return;
+      grp.forEach(r=>{
+        const rc=r.podpct===null?'':(r.podpct>=g.t?'pod-ok':(r.podpct>=g.r?'pod-warn':'pod-risk'));
+        let pickCells='';
+        if(isB2C){
+          const has=r.assigned>0;
+          const c2bcls=has?(r.puppct>=T.b2c_c2b?'pod-ok':'pod-risk'):'';
+          pickCells='<td>'+(has?r.assigned:'—')+'</td><td class="'+c2bcls+'">'+(has?fmtPct(r.puppct,0):'—')+'</td>';
+        }
+        courRows+='<tr><td>'+r.route+'</td><td class="vend-cell">'+r.emp+'</td><td>'+(r.ofd??'—')+'</td><td>'+(r.pod??'—')+'</td><td class="'+rc+'">'+fmtPct(r.podpct,0)+'</td>'+pickCells+'<td>'+fmtPct(r.sf,0)+'</td></tr>';
+      });
+    });
+    const courHead = isB2C
+      ? '<tr><th>Route</th><th>Emp</th><th>OFD</th><th>POD</th><th>POD%</th><th>Pick</th><th>C2B%</th><th>SF</th></tr>'
+      : '<tr><th>Route</th><th>Emp</th><th>OFD</th><th>POD</th><th>POD%</th><th>SF</th></tr>';
+    const open = !!courierOpen[s.station];
+    const c2bCls = s.pupPct===null?'':(s.pupPct>=T.b2c_c2b?'c2b-ok':'c2b-bad');
+    return '<div class="stncard st-'+st+(open?' open':'')+'" id="card_'+safeId(s.station)+'">'+
+      '<div class="stncard-hd">'+
+        '<div><div class="stncard-name">'+s.station+'</div><div class="stncard-sub">'+s.crr+' couriers &middot; '+vN+' vendor'+(vN>1?'s':'')+' &middot; '+stTxt+'</div></div>'+
+        '<div class="stncard-pod '+st+'"><span>POD</span><b>'+fmtPct(s.podpct,1)+'</b></div>'+
+        '<button class="pngbtn mini-btn no-snap" onclick="snapStation(\''+s.station.replace(/'/g,"")+'\')">PNG</button>'+
+      '</div>'+
+      '<div class="stncard-stats">'+
+        '<div><span>Couriers</span><b>'+s.crr+'</b></div>'+
+        '<div><span>OFD</span><b>'+s.ofd+'</b></div>'+
+        '<div><span>POD</span><b>'+s.pod+'</b></div>'+
+        '<div><span>SF</span><b>'+fmtPct(s.sf,0)+'</b></div>'+
+        '<div><span>At risk</span><b>'+(s.risk||'0')+'</b></div>'+
+      '</div>'+
+      '<div class="pickup">'+
+        '<div><span>Pickup crr</span><b>'+s.pkCrr+'</b></div>'+
+        '<div><span>Assigned</span><b>'+s.asg+'</b></div>'+
+        '<div><span>Pending</span><b>'+s.pend+'</b></div>'+
+        '<div><span>C2B %</span><b class="'+c2bCls+'">'+fmtPct(s.pupPct,0)+'</b></div>'+
+      '</div>'+
+      (isB2C?'<div class="stnsec"><div class="lbl">By vendor <span class="cnt">'+vN+'</span></div>'+
+        '<table class="mini"><thead><tr><th>Vendor</th><th>Crr</th><th>OFD</th><th>Avg OFD</th><th>POD</th><th>POD%</th><th>SF</th></tr></thead><tbody>'+vendRows+'</tbody></table></div>':'')+
+      '<div class="stnsec"><div class="lbl">Courier performance <span class="cnt">'+s.couriers.length+'</span>'+
+        '<button class="collapse-btn no-snap" onclick="toggleCour(\''+s.station.replace(/'/g,"")+'\')">'+(open?'Hide':'Show')+'</button></div>'+
+        '<div class="courlist'+(open?'':' collapsed')+'"><table class="mini"><thead>'+courHead+'</thead><tbody>'+courRows+'</tbody></table></div></div>'+
+    '</div>';
+  }).join('');
+}
+function toggleCour(station){ courierOpen[station]=!courierOpen[station]; renderStations(); }
+async function captureCanvas(el){
+  const touched=[];
+  function set(node,prop,val){ touched.push([node,prop,node.style[prop]]); node.style[prop]=val; }
+  const restoreCls=[];
+  const cards = el.matches && el.matches('.stncard') ? [el] : Array.from(el.querySelectorAll('.stncard'));
+  el.querySelectorAll('.no-snap').forEach(n=>{ set(n,'display','none'); });
+  el.querySelectorAll('.courlist').forEach(n=>{ if(n.classList.contains('collapsed')){ n.classList.remove('collapsed'); restoreCls.push([n,'collapsed']); } set(n,'maxHeight','none'); set(n,'overflow','visible'); });
+  cards.forEach(c=>{ set(c,'overflow','visible'); set(c,'width','max-content'); set(c,'maxWidth','none'); });
+  if(cards.length>1){ set(el,'display','block'); }
+  el.querySelectorAll('.scroll').forEach(n=>set(n,'overflow','visible'));
+  void el.offsetHeight;
+  try{
+    const w=Math.max(el.scrollWidth, el.offsetWidth), h=Math.max(el.scrollHeight, el.offsetHeight);
+    let scale=2; const MAX=15000;
+    if(w*scale>MAX || h*scale>MAX) scale=Math.max(1, Math.min(w?MAX/w:2, h?MAX/h:2));
+    return await html2canvas(el,{scale,backgroundColor:'#ffffff',useCORS:true,width:w,height:h,windowWidth:w,scrollX:0,scrollY:0});
+  } finally {
+    for(let i=touched.length-1;i>=0;i--){ touched[i][0].style[touched[i][1]]=touched[i][2]; }
+    restoreCls.forEach(([n,c])=>n.classList.add(c));
+  }
+}
+function canvasToBlob(canvas){ return new Promise(res=>canvas.toBlob(res,'image/png')); }
+async function snap(el,name){
+  if(!el) return;
+  try{
+    const canvas=await captureCanvas(el);
+    const blob=await canvasToBlob(canvas);
+    if(!blob){ alert('Image export failed: empty canvas'); return; }
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.download=name+'.png'; a.href=url; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  }catch(err){ alert('Image export failed: '+err.message); }
+}
+async function shareImage(el,name,text){
+  if(!el) return;
+  try{
+    const canvas=await captureCanvas(el);
+    const blob=await canvasToBlob(canvas);
+    const file=new File([blob],name+'.png',{type:'image/png'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],text:text||''});
+    } else { await snap(el,name); }
+  }catch(err){ if(err && err.name!=='AbortError') alert('Share failed: '+err.message); }
+}
+async function snapStation(station){
+  const g=tgt(); const s=stationAgg(STN_VENDOR).find(x=>x.station===station);
+  if(!s) return;
+  const twoCol = s.couriers.length>14;
+  const width = twoCol? 1140 : 620;
+  const wrap=document.createElement('div'); wrap.className='export-sheet';
+  wrap.style.cssText='position:fixed;left:-20000px;top:0;width:'+width+'px;background:#fff;padding:22px';
+  wrap.innerHTML='<div class="export-hd"><h2>'+s.station+'</h2><span>'+nowStamp()+'</span></div>'+stationFullCardHTML(s,g,twoCol);
+  document.body.appendChild(wrap); void wrap.offsetHeight;
+  try{ wrap.querySelectorAll('.scroll').forEach(x=>x.style.overflow='visible'); await snapNode(wrap, station.replace(/\s+/g,'_')+'_'+SEG+'_'+dstamp()); }
+  catch(err){ alert('Export failed: '+err.message); }
+  finally{ document.body.removeChild(wrap); }
+}
+function dstamp(){ return new Date().toISOString().slice(0,10); }
+
+/* ---------- summary ---------- */
+function segSummary(sg){
+  const save=SEG; SEG=sg;
+  const rows=scored();
+  const ofd=rows.reduce((a,r)=>a+(r.ofd||0),0), pod=rows.reduce((a,r)=>a+(r.pod||0),0);
+  const wpod=ofd>0?pod/ofd*100:null;
+  const g=tgt();
+  const stns=stationAgg();
+  const atRisk=rows.filter(r=>r.podpct!==null&&r.podpct<g.r).length;
+  const belowTarget=stns.filter(s=>s.podpct!==null&&s.podpct<g.t).map(s=>s.city);
+  const withA=rows.filter(r=>r.assigned>0);
+  const c2bVals=withA.filter(r=>r.puppct!==null).map(r=>r.puppct);
+  const c2b=c2bVals.length?c2bVals.reduce((a,b)=>a+b,0)/c2bVals.length:null;
+  const delayed=delayedRows().length;
+  const byCity={}; stns.forEach(s=>byCity[s.city]=s);
+  const r={sg,ofd,pod,wpod,target:g.t,risk:g.r,couriers:rows.length,atRisk,belowTarget,c2b,delayed,byCity};
+  SEG=save; return r;
+}
+function segCls(v,t,r){ return v==null?'idle':(v>=t?'ok':(v>=r?'warn':'risk')); }
+function nowStamp(){ const d=new Date(); return d.toLocaleDateString([], {day:'2-digit',month:'short',year:'numeric'})+', '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+function renderSummary(){
+  const b=segSummary('B2C'), p=segSummary('B2B');
+  const box=document.getElementById('summaryCard');
+  if(!ROWS.length){
+    box.innerHTML='<div class="card" id="sumSheet" style="padding:40px 24px;text-align:center">'+
+      '<h2 style="margin-bottom:8px">No data loaded</h2>'+
+      '<p style="color:var(--muted);max-width:460px;margin:0 auto 18px">Paste or import a Spanel export to build the report. Station, segment and city are derived from the route.</p>'+
+      '<button class="btn-primary" onclick="document.getElementById(\'pasteOpen\').click()">Paste data</button></div>';
+    return;
+  }
+  const kpi=(x)=>{
+    const cls=segCls(x.wpod,x.target,x.risk);
+    return '<div class="sum-seg '+cls+'"><div class="strip"></div>'+
+      '<div class="tag2">'+x.sg+' &middot; POD vs '+x.target+'%</div>'+
+      '<div class="big">'+fmtPct(x.wpod,1)+'</div>'+
+      '<div class="row"><span>OFD <b>'+x.ofd+'</b></span><span>couriers <b>'+x.couriers+'</b></span><span>at risk <b>'+x.atRisk+'</b></span>'+
+      (x.sg==='B2C'?'<span>C2B <b>'+fmtPct(x.c2b,0)+'</b></span>':'')+'<span>delayed 1st POD <b>'+x.delayed+'</b></span></div></div>';
+  };
+  // scorecard rows by city
+  let rows='';
+  CITIES.forEach(c=>{
+    const bc=b.byCity[c], pc=p.byCity[c];
+    const bcl=segCls(bc?bc.podpct:null,b.target,b.risk), pcl=segCls(pc?pc.podpct:null,p.target,p.risk);
+    rows+='<tr><td>'+c+'</td>'+
+      '<td class="sep"><span class="dotc '+bcl+'"></span>'+(bc?fmtPct(bc.podpct,1):'—')+'</td><td>'+(bc?bc.ofd:'—')+'</td><td>'+(bc?(bc.risk||0):'—')+'</td>'+
+      '<td class="sep"><span class="dotc '+pcl+'"></span>'+(pc?fmtPct(pc.podpct,1):'—')+'</td><td>'+(pc?pc.ofd:'—')+'</td><td>'+(pc?(pc.risk||0):'—')+'</td></tr>';
+  });
+  // attention
+  const attn=[];
+  if(b.belowTarget.length) attn.push('<b>B2C below target:</b> '+b.belowTarget.join(', '));
+  if(p.belowTarget.length) attn.push('<b>B2B below target:</b> '+p.belowTarget.join(', '));
+  if(b.c2b!==null && b.c2b<T.b2c_c2b) attn.push('<b>B2C C2B below '+T.b2c_c2b+'%:</b> '+fmtPct(b.c2b,0));
+  if((b.delayed+p.delayed)>0) attn.push('<b>Delayed first POD:</b> '+(b.delayed+p.delayed)+' couriers past '+fmtMins(DELAY_MIN));
+  const attnHtml = attn.length ? attn.join('<br>') : '<span class="none">All stations at or above target. No flags.</span>';
+
+  box.innerHTML='<div class="card" id="sumSheet">'+
+    '<div class="sum-hd"><h2>Operations Summary</h2><span class="stamp">'+nowStamp()+'</span></div>'+
+    '<div class="sum-kpis">'+kpi(b)+kpi(p)+'</div>'+
+    '<table class="sum-score"><thead>'+
+      '<tr><th></th><th class="grp sep" colspan="3">B2C last mile</th><th class="grp sep" colspan="3">B2B priority</th></tr>'+
+      '<tr><th>City</th><th class="sep">POD%</th><th>OFD</th><th>Risk</th><th class="sep">POD%</th><th>OFD</th><th>Risk</th></tr>'+
+    '</thead><tbody>'+rows+'</tbody></table>'+
+    '<div class="sum-attn">'+attnHtml+'</div></div>';
+}
+function summaryText(plain){
+  const b=segSummary('B2C'), p=segSummary('B2B');
+  const emo=(v,t,r)=>v==null?'⚪':(v>=t?'🟢':(v>=r?'🟡':'🔴'));
+  const st=plain?'':'*';
+  let s=st+'Operations Summary'+st+'\n'+nowStamp()+'\n\n';
+  s+=st+'B2C'+st+' POD '+fmtPct(b.wpod,0)+' (target '+b.target+') '+emo(b.wpod,b.target,b.risk)+'  |  at risk '+b.atRisk+'\n';
+  s+=st+'B2B'+st+' POD '+fmtPct(p.wpod,0)+' (target '+p.target+') '+emo(p.wpod,p.target,p.risk)+'  |  at risk '+p.atRisk+'\n';
+  s+='Total OFD '+(b.ofd+p.ofd)+'  |  Delayed 1st POD '+(b.delayed+p.delayed)+'\n\n';
+  CITIES.forEach(c=>{
+    const bc=b.byCity[c], pc=p.byCity[c];
+    s+=st+c+st+'  B2C '+(bc?fmtPct(bc.podpct,0):'—')+' '+emo(bc?bc.podpct:null,b.target,b.risk)+'  |  B2B '+(pc?fmtPct(pc.podpct,0):'—')+' '+emo(pc?pc.podpct:null,p.target,p.risk)+'\n';
+  });
+  if(b.belowTarget.length||p.belowTarget.length){
+    s+='\n'+st+'Below target'+st+': ';
+    const bt=[]; if(b.belowTarget.length)bt.push('B2C '+b.belowTarget.join(', ')); if(p.belowTarget.length)bt.push('B2B '+p.belowTarget.join(', '));
+    s+=bt.join(' | ');
+  }
+  return s;
+}
+async function copyWA(){
+  const txt=summaryText(false);
+  try{ await navigator.clipboard.writeText(txt); toast('Summary copied. Paste into WhatsApp.'); }
+  catch(e){ // fallback
+    const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); toast('Summary copied. Paste into WhatsApp.'); }catch(_){ alert('Copy failed. Long-press to select:\n\n'+txt); }
+    document.body.removeChild(ta);
+  }
+}
+function emailSummary(){
+  const subj='Operations Summary '+nowStamp();
+  const body=summaryText(true);
+  window.location.href='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
+}
+
+/* ---------- low performers ---------- */
+function lowRows(){
+  const g=tgt();
+  return scored().filter(r=>r.podpct!==null&&r.podpct<g.t)
+    .sort((a,b)=>a.podpct-b.podpct);
+}
+function lowCardHTML(station,rows,g){
+  const worst=rows[0].podpct;
+  const body=rows.map(r=>{
+    const rc=r.podpct===null?'':(r.podpct>=g.t?'pod-ok':(r.podpct>=g.r?'pod-warn':'pod-risk'));
+    return '<tr><td>'+r.emp+'</td><td>'+r.route+'</td><td class="vend-cell">'+shortV(r.isp)+'</td>'+
+      '<td>'+(r.ofd??'—')+'</td><td>'+(r.pod??'—')+'</td><td class="'+rc+'">'+fmtPct(r.podpct,0)+'</td>'+
+      '<td>'+fmtPct(r.pinpct,0)+'</td><td>'+fmtPct(r.sf,0)+'</td></tr>';
+  }).join('');
+  return '<div class="stncard st-risk" id="lowcard_'+safeId(station)+'">'+
+    '<div class="stncard-hd"><div><div class="stncard-name">'+station+'</div><div class="stncard-sub">'+rows.length+' below target</div></div>'+
+    '<div class="stncard-pod risk"><span>Worst</span><b>'+fmtPct(worst,0)+'</b></div></div>'+
+    '<div class="stnsec"><div class="scroll"><table class="mini"><thead><tr><th>Emp</th><th>Route</th><th>Vendor</th><th>OFD</th><th>POD</th><th>POD%</th><th>PIN</th><th>SF</th></tr></thead><tbody>'+body+'</tbody></table></div></div></div>';
+}
+function lowGroups(){
+  const g=tgt();
+  let data=lowRows();
+  const stnSel=document.getElementById('lowStn'), vSel=document.getElementById('lowVend');
+  if(stnSel && stnSel.value && stnSel.value!=='All stations') data=data.filter(r=>r.station===stnSel.value);
+  if(vSel && vSel.value && vSel.value!=='All vendors') data=data.filter(r=>r.isp===vSel.value);
+  const groups={};
+  data.forEach(r=>{ (groups[r.station]=groups[r.station]||[]).push(r); });
+  return Object.entries(groups).map(([station,rows])=>({station,rows:rows.sort((a,b)=>a.podpct-b.podpct)}))
+    .sort((a,b)=> b.rows.length-a.rows.length || a.rows[0].podpct-b.rows[0].podpct);
+}
+function renderLow(){
+  document.getElementById('lowTitle').textContent=(SEG==='B2C'?'B2C':'B2B')+' couriers below '+tgt().t+'% POD target';
+  const stnSel=document.getElementById('lowStn'), vSel=document.getElementById('lowVend');
+  fillOnce(stnSel, ['All stations',...new Set(lowRows().map(r=>r.station))]);
+  fillOnce(vSel, ['All vendors',...new Set(lowRows().map(r=>r.isp))]);
+  const g=tgt(); const grid=document.getElementById('lowGrid');
+  const groups=lowGroups();
+  if(!groups.length){ grid.innerHTML='<div class="empty">No couriers below the '+g.t+'% target with these filters. Good.</div>'; return; }
+  grid.innerHTML=groups.map(gp=>lowCardHTML(gp.station,gp.rows,g)).join('');
+}
+async function downloadLow(){
+  const g=tgt(); const groups=lowGroups();
+  if(!groups.length){ alert('No low performers to export.'); return; }
+  const n=groups.length;
+  const cols = n<=1?1 : (n>=5?3:2);
+  const cardW=460, gap=14, pad=22;
+  const width=cols*cardW+(cols-1)*gap+pad*2;
+  const wrap=document.createElement('div');
+  wrap.className='export-sheet';
+  wrap.style.cssText='position:fixed;left:-20000px;top:0;width:'+width+'px;background:#fff;padding:'+pad+'px';
+  wrap.innerHTML='<div class="export-hd"><h2>'+(SEG==='B2C'?'B2C':'B2B')+' low performers below '+g.t+'% POD</h2><span>'+nowStamp()+'</span></div>'+
+    '<div class="export-grid" style="grid-template-columns:repeat('+cols+',1fr)">'+groups.map(gp=>lowCardHTML(gp.station,gp.rows,g)).join('')+'</div>';
+  document.body.appendChild(wrap); void wrap.offsetHeight;
+  try{ wrap.querySelectorAll('.scroll').forEach(s=>s.style.overflow='visible'); await snapNode(wrap,'Low_performers_'+SEG+'_'+dstamp()); }
+  catch(err){ alert('Export failed: '+err.message); }
+  finally{ document.body.removeChild(wrap); }
+}
+
+/* ---------- utilization ---------- */
+function utilRows(){
+  if(SEG!=='B2C') return [];
+  return segRows().filter(r=>!r.conflict && (r.isp in T.ofd_targets) && r.ofd!==null && r.ofd < T.ofd_targets[r.isp])
+    .sort((a,b)=>(a.ofd)-(b.ofd));
+}
+function renderUtil(){
+  const t=document.getElementById('utilTable');
+  if(SEG!=='B2C'){
+    document.getElementById('utilHint').innerHTML='<div>&#9888;</div><div>OFD targets do not apply to B2B priority routes, so nothing is flagged here. Switch to the B2C tool to review last-mile utilization.</div>';
+    document.getElementById('utilDesc').textContent='B2B has no OFD target.';
+    t.innerHTML='<tbody><tr><td class="empty" colspan="7">Utilization is tracked for B2C last-mile couriers only.</td></tr></tbody>';
+    return;
+  }
+  const enabled=Object.keys(T.ofd_targets);
+  const vend=enabled.length? enabled.map(v=>shortV(v)+' ('+T.ofd_targets[v]+')').join(', ') : 'none';
+  document.getElementById('utilHint').innerHTML='<div>&#9888;</div><div>OFD targets apply to <b>'+vend+'</b> on B2C. Vendors without a target set are never flagged. Adjust the vendor list under Targets.</div>';
+  document.getElementById('utilDesc').textContent='Couriers below their vendor OFD target, '+SEG+' population.';
+  let data=utilRows();
+  const stnSel=document.getElementById('utilStn'), vSel=document.getElementById('utilVend');
+  fillSel(stnSel, ['All stations',...new Set(utilRows().map(r=>r.station))], renderUtil);
+  fillSel(vSel, ['All vendors',...new Set(utilRows().map(r=>r.isp))], renderUtil);
+  if(stnSel.value && stnSel.value!=='All stations') data=data.filter(r=>r.station===stnSel.value);
+  if(vSel.value && vSel.value!=='All vendors') data=data.filter(r=>r.isp===vSel.value);
+  data=sortRows(data,'util',{key:'ofd',dir:'asc'});
+  if(data.length===0){ t.innerHTML='<tbody><tr><td class="empty" colspan="7">No couriers below their vendor OFD target with these filters.</td></tr></tbody>'; return; }
+  const cols=[['emp','Emp #'],['route','Route'],['isp','Vendor'],['city','City'],['ofd','OFD'],['podpct','POD %'],['sf','SF']];
+  let h='<thead><tr>'+cols.map(c=>'<th data-k="'+c[0]+'" data-tbl="util">'+c[1]+arrow('util',c[0])+'</th>').join('')+'</tr></thead><tbody>';
+  data.forEach(r=>{
+    const gap=T.ofd_targets[r.isp]-r.ofd;
+    h+='<tr><td>'+r.emp+'</td><td>'+r.route+'</td><td>'+r.isp+'</td><td>'+r.city+'</td>'+
+       '<td class="num pod-risk">'+r.ofd+' <span style="color:var(--muted);font-weight:500">(-'+gap+')</span></td>'+
+       '<td class="num '+podCls(r.podpct)+'">'+fmtPct(r.podpct,0)+'</td><td class="num">'+fmtPct(r.sf,0)+'</td></tr>';
+  });
+  h+='</tbody>'; t.innerHTML=h; bindSort();
+}
+
+/* ---------- conflicts ---------- */
+function confRows(){ return ROWS.filter(r=>r.conflict && !r.excluded).sort((a,b)=>a.station.localeCompare(b.station)); }
+function renderConf(){
+  const cr=confRows();
+  document.getElementById('confMsg').innerHTML='<b>'+cr.length+'</b> rows have impossible delivery ratios (OFD = 0 with deliveries, or POD &gt; OFD). They are held out of every POD % figure across both tools. Reconcile them against the portal, then re-import.';
+  const t=document.getElementById('confTable');
+  if(cr.length===0){ t.innerHTML='<tbody><tr><td class="empty" colspan="8">No conflict rows. Clean import.</td></tr></tbody>'; return; }
+  const cols=[['emp','Emp #'],['route','Route'],['isp','Vendor'],['seg','Segment'],['station','Station'],['ofd','OFD'],['pod','POD'],['reason','Reason']];
+  let h='<thead><tr>'+cols.map(c=>'<th>'+c[1]+'</th>').join('')+'</tr></thead><tbody>';
+  cr.forEach(r=>{
+    const reason = (r.ofd===0||r.ofd===null)?'OFD is 0 but '+r.pod+' delivered':'POD ('+r.pod+') exceeds OFD ('+r.ofd+')';
+    h+='<tr><td>'+r.emp+'</td><td>'+r.route+'</td><td>'+r.isp+'</td><td><span class="tag idle">'+r.seg+'</span></td>'+
+       '<td>'+r.station+'</td><td class="num">'+(r.ofd??'—')+'</td><td class="num">'+(r.pod??'—')+'</td>'+
+       '<td style="text-align:left;color:var(--risk);font-weight:600">'+reason+'</td></tr>';
+  });
+  h+='</tbody>'; t.innerHTML=h;
+}
+
+/* ---------- delayed first POD ---------- */
+function delayedRows(){
+  return segRows().filter(r=>r.firstPodMin!==null && r.firstPodMin>DELAY_MIN)
+    .sort((a,b)=>b.firstPodMin-a.firstPodMin);
+}
+function renderDelayed(){
+  document.getElementById('delayTitle').textContent=(SEG==='B2C'?'B2C':'B2B')+' couriers past first POD in '+fmtMins(DELAY_MIN);
+  let data=delayedRows();
+  const stnSel=document.getElementById('delayStn');
+  fillSel(stnSel,['All stations',...new Set(delayedRows().map(r=>r.station))], renderDelayed);
+  if(stnSel.value && stnSel.value!=='All stations') data=data.filter(r=>r.station===stnSel.value);
+  const t=document.getElementById('delayTable');
+  if(data.length===0){ t.innerHTML='<tbody><tr><td class="empty" colspan="8">No couriers past '+fmtMins(DELAY_MIN)+' to first POD in this population.</td></tr></tbody>'; return; }
+  let h='<thead><tr><th>Route</th><th>Emp</th><th>Vendor</th><th>City</th><th>Station</th><th>Started</th><th>1st POD took</th><th>Over by</th></tr></thead><tbody>';
+  data.forEach(r=>{
+    h+='<tr><td>'+r.route+'</td><td>'+r.emp+'</td><td class="vend-cell">'+shortV(r.isp)+'</td><td>'+r.city+'</td><td>'+r.station+'</td>'+
+       '<td>'+(r.started||'—')+'</td><td class="pod-risk">'+fmtMins(r.firstPodMin)+'</td>'+
+       '<td class="num">'+fmtMins(r.firstPodMin-DELAY_MIN)+'</td></tr>';
+  });
+  h+='</tbody>'; t.innerHTML=h;
+}
+
+/* ---------- dispatch (city x segment) ---------- */
+function renderDispatch(){
+  const t=document.getElementById('dispTable'); if(!t) return;
+  let h='<thead><tr><th>City</th><th>B2C</th><th>B2B</th></tr></thead><tbody>';
+  CITIES.forEach(city=>{
+    const b2c=city+' LMX', b2b=city+' St';
+    h+='<tr><td style="font-weight:600">'+city+'</td>'+
+       '<td><input type="time" value="'+(DISPATCH[b2c]||'')+'" onchange="setDispatch(\''+b2c+'\',this.value)"></td>'+
+       '<td><input type="time" value="'+(DISPATCH[b2b]||'')+'" onchange="setDispatch(\''+b2b+'\',this.value)"></td></tr>';
+  });
+  h+='</tbody>'; t.innerHTML=h;
+}
+function setDispatch(label,val){ if(val) DISPATCH[label]=val; else delete DISPATCH[label]; }
+
+/* ---------- exclusions ---------- */
+function renderExclusions(){
+  const box=document.getElementById('exclChips'); if(!box) return;
+  const arr=[...EXCLUDED];
+  const emptyEl=document.getElementById('exclEmpty'); if(emptyEl) emptyEl.style.display=arr.length?'none':'block';
+  box.innerHTML=arr.map(e=>'<span class="chip rm" onclick="removeExcl(\''+e+'\')">'+e+'<b>&times;</b></span>').join('');
+}
+function removeExcl(id){ EXCLUDED.delete(id); applyExclusions(); renderExclusions(); renderAll(true); }
+function addExcl(){
+  const inp=document.getElementById('exclInput');
+  const ids=inp.value.split(/[\s,;]+/).map(x=>x.trim()).filter(Boolean);
+  if(!ids.length) return;
+  const known=new Set(ROWS.map(r=>r.emp));
+  const missing=ids.filter(id=>!known.has(id));
+  ids.forEach(id=>EXCLUDED.add(id)); inp.value='';
+  applyExclusions(); renderExclusions(); renderAll(true);
+  toast('Excluded '+ids.length+' staff'+(missing.length?' &middot; not in current data: '+missing.join(', '):''));
+}
+
+/* ---------- sorting ---------- */
+function arrow(tbl,k){ const s=sortState[tbl]; if(!s||s.key!==k)return ' <span style="color:#cbd5e1">&#8597;</span>'; return s.dir==='asc'?' &#9650;':' &#9660;'; }
+function sortRows(arr,tbl,def){
+  const s=sortState[tbl]||def; sortState[tbl]=s;
+  const a=[...arr];
+  a.sort((x,y)=>{ let vx=x[s.key],vy=y[s.key];
+    if(typeof vx==='string'||typeof vy==='string'){vx=(vx??'').toString();vy=(vy??'').toString();return s.dir==='asc'?vx.localeCompare(vy):vy.localeCompare(vx);}
+    vx=vx??-Infinity; vy=vy??-Infinity; return s.dir==='asc'?vx-vy:vy-vx; });
+  return a;
+}
+function bindSort(){
+  document.querySelectorAll('th[data-k]').forEach(th=>{
+    th.onclick=()=>{ const tbl=th.dataset.tbl,k=th.dataset.k; const s=sortState[tbl];
+      sortState[tbl]= s&&s.key===k ? {key:k,dir:s.dir==='asc'?'desc':'asc'} : {key:k,dir:'asc'};
+      renderTab(); };
+  });
+}
+function fillOnce(sel,opts){ if(sel.dataset.filled==='1')return; sel.innerHTML=opts.map(o=>'<option>'+o+'</option>').join(''); sel.dataset.filled='1'; sel.onchange=()=>renderLow(); }
+function fillSel(sel,opts,cb){ if(sel.dataset.filled==='1')return; sel.innerHTML=opts.map(o=>'<option>'+o+'</option>').join(''); sel.dataset.filled='1'; sel.onchange=cb; }
+
+/* ---------- targets ---------- */
+function syncTargetInputs(){
+  const map={t_b2c_pod_t:'b2c_pod_t',t_b2c_pod_r:'b2c_pod_r',t_b2c_c2b:'b2c_c2b',t_b2b_pod_t:'b2b_pod_t',t_b2b_pod_r:'b2b_pod_r'};
+  for(const id in map) document.getElementById(id).value=T[map[id]];
+  renderOfdVendors();
+}
+function renderOfdVendors(){
+  const box=document.getElementById('ofdVendorList'); if(!box) return;
+  const vendors=[...new Set(ROWS.map(r=>r.isp))].filter(Boolean).sort();
+  if(!vendors.length){ box.innerHTML='<p style="color:var(--muted);font-size:12px">No vendors loaded yet.</p>'; return; }
+  box.innerHTML=vendors.map(v=>{
+    const on=(v in T.ofd_targets); const val=on?T.ofd_targets[v]:50;
+    return '<div class="ofd-row" data-v="'+v.replace(/"/g,'&quot;')+'">'+
+      '<label><input type="checkbox" '+(on?'checked':'')+'> '+v+'</label>'+
+      '<input type="number" class="num ofd-tgt" value="'+val+'" '+(on?'':'disabled')+'></div>';
+  }).join('');
+  box.querySelectorAll('.ofd-row').forEach(row=>{
+    const v=row.dataset.v;
+    const cb=row.querySelector('input[type=checkbox]');
+    const inp=row.querySelector('.ofd-tgt');
+    cb.onchange=()=>{ if(cb.checked){ T.ofd_targets[v]=parseFloat(inp.value)||50; inp.disabled=false; } else { delete T.ofd_targets[v]; inp.disabled=true; } updatePills(); toast('Utilization targets updated'); };
+    inp.oninput=()=>{ if(v in T.ofd_targets){ T.ofd_targets[v]=parseFloat(inp.value)||0; updatePills(); } };
+  });
+}
+function bindTargets(){
+  const map={t_b2c_pod_t:'b2c_pod_t',t_b2c_pod_r:'b2c_pod_r',t_b2c_c2b:'b2c_c2b',t_b2b_pod_t:'b2b_pod_t',t_b2b_pod_r:'b2b_pod_r'};
+  for(const id in map){
+    document.getElementById(id).addEventListener('input',e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){T[map[id]]=v; renderAll(false); toast('Target updated');} });
+  }
+}
+
+/* ---------- pill counts ---------- */
+function updatePills(){
+  document.getElementById('pcLow').textContent=lowRows().length;
+  document.getElementById('pcUtil').textContent=utilRows().length;
+  document.getElementById('pcDelay').textContent=delayedRows().length;
+  document.getElementById('pcConf').textContent=confRows().length;
+}
+
+/* ---------- render orchestration ---------- */
+function renderTab(){
+  if(TAB==='summary') renderSummary();
+  else if(TAB==='overview'){ renderKPIs(); renderCharts(); renderOverviewStations(); }
+  else if(TAB==='stations') renderStations();
+  else if(TAB==='routes') renderRoutes();
+  else if(TAB==='low') renderLow();
+  else if(TAB==='util') renderUtil();
+  else if(TAB==='delayed') renderDelayed();
+  else if(TAB==='conf') renderConf();
+  else if(TAB==='targets'){ syncTargetInputs(); renderExclusions(); renderDispatch(); }
+}
+function renderAll(resetFilters){
+  if(resetFilters){ ['lowStn','lowVend','delayStn','utilStn','utilVend','stnVend','routeVend'].forEach(id=>{const s=document.getElementById(id); if(s) s.dataset.filled='';}); STN_VENDOR=''; courVendCollapsed.clear(); routeOpen.clear(); }
+  updatePills(); renderTab();
+  const total=ROWS.length, exc=ROWS.filter(r=>r.excluded).length;
+  document.getElementById('meta').innerHTML='<span class="num">'+total+'</span> couriers &middot; <span class="num">'+ROWS.filter(r=>r.seg==='B2C'&&!r.excluded).length+'</span> B2C / <span class="num">'+ROWS.filter(r=>r.seg==='B2B'&&!r.excluded).length+'</span> B2B'+(exc?' &middot; <span class="num">'+exc+'</span> excluded':'');
+}
+
+/* ---------- nav ---------- */
+document.getElementById('segswitch').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  SEG=b.dataset.seg; document.querySelectorAll('#segswitch button').forEach(x=>x.classList.toggle('on',x===b));
+  openStations={}; renderAll(true);
+});
+document.getElementById('subnav').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  TAB=b.dataset.tab; document.querySelectorAll('#subnav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.dataset.view===TAB));
+  renderTab();
+});
+
+/* ---------- import ---------- */
+const HDR={
+  Employee:/employee|^emp/i, ISP:/isp|vendor/i, Route:/route/i,
+  OFD:/out for delivery|^ofd$/i, POD:/^delivered$|^pod$/i, Assigned:/assigned/i,
+  PendingPUP:/pending/i, PODpct:/pod\s*%/i, PUPpct:/pup\s*%/i, PINpct:/pin\s*%/i,
+  SF:/success factor|^sf$/i, FirstPOD:/1st\s*pod|first\s*pod|pod took/i, Started:/^started$/i
+};
+function mapHeaders(headerRow){
+  const idx={};
+  headerRow.forEach((h,i)=>{ const H=(h||'').toString().trim();
+    for(const key in HDR){ if(idx[key]===undefined && HDR[key].test(H)){ idx[key]=i; } }
+  });
+  return idx;
+}
+document.getElementById('fileInput').addEventListener('change',ev=>{
+  const f=ev.target.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      let sheet = wb.SheetNames.find(n=>/spanel|sheet1|data/i.test(n)) || wb.SheetNames[0];
+      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{header:1,defval:''});
+      // find header row (first row containing 'Route')
+      let hr=aoa.findIndex(r=>r.some(c=>/route/i.test((c||'').toString())));
+      if(hr<0)hr=0;
+      const idx=mapHeaders(aoa[hr]);
+      if(idx.Route===undefined){ alert('Could not find a Route column in that file.'); return; }
+      const raw=[];
+      for(let i=hr+1;i<aoa.length;i++){
+        const r=aoa[i]; if(!r||!(r[idx.Route])) continue;
+        raw.push({
+          Employee:r[idx.Employee], ISP:r[idx.ISP], Route:r[idx.Route],
+          OFD:r[idx.OFD], POD:r[idx.POD], Assigned:r[idx.Assigned], PendingPUP:r[idx.PendingPUP],
+          PODpct:r[idx.PODpct], PUPpct:r[idx.PUPpct], PINpct:r[idx.PINpct], SF:r[idx.SF],
+          FirstPOD:r[idx.FirstPOD], Started:r[idx.Started]
+        });
+      }
+      if(raw.length===0){ alert('No data rows found under the headers.'); return; }
+      loadRows(raw); openStations={}; renderAll(true);
+      const unknown=[...new Set(ROWS.filter(r=>!r.known).map(r=>r.prefix))];
+      toast('Loaded '+ROWS.length+' couriers'+(unknown.length?' &middot; unknown prefixes: '+unknown.join(', '):''));
+    }catch(err){ alert('Import failed: '+err.message); }
+  };
+  rd.readAsArrayBuffer(f);
+  ev.target.value='';
+});
+
+/* ---------- paste ---------- */
+function parsePasted(text){
+  const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim()!=='');
+  if(!lines.length) return null;
+  const delim = lines[0].indexOf('\t')>=0 ? '\t' : ',';
+  const rows=lines.map(l=>l.split(delim).map(c=>c.trim()));
+  let hr=rows.findIndex(r=>r.some(c=>/route/i.test(c)));
+  if(hr<0) hr=0;
+  const idx=mapHeaders(rows[hr]);
+  if(idx.Route===undefined) return {error:'No Route column found. Include the header row.'};
+  const raw=[];
+  for(let i=hr+1;i<rows.length;i++){
+    const r=rows[i]; if(!r||!r[idx.Route]) continue;
+    raw.push({Employee:r[idx.Employee],ISP:r[idx.ISP],Route:r[idx.Route],OFD:r[idx.OFD],POD:r[idx.POD],
+      Assigned:r[idx.Assigned],PendingPUP:r[idx.PendingPUP],PODpct:r[idx.PODpct],PUPpct:r[idx.PUPpct],PINpct:r[idx.PINpct],SF:r[idx.SF],
+      FirstPOD:r[idx.FirstPOD],Started:r[idx.Started]});
+  }
+  return {raw};
+}
+const pm=document.getElementById('pasteModal');
+function closePaste(){ pm.classList.remove('on'); document.getElementById('pasteMsg').textContent=''; }
+document.getElementById('pasteOpen').onclick=()=>{ pm.classList.add('on'); document.getElementById('pasteArea').focus(); };
+document.getElementById('pasteClose').onclick=closePaste;
+document.getElementById('pasteCancel').onclick=closePaste;
+pm.addEventListener('click',e=>{ if(e.target===pm) closePaste(); });
+document.getElementById('pasteLoad').onclick=()=>{
+  const res=parsePasted(document.getElementById('pasteArea').value);
+  const msg=document.getElementById('pasteMsg');
+  if(!res){ msg.textContent='Nothing to load.'; return; }
+  if(res.error){ msg.textContent=res.error; return; }
+  if(!res.raw.length){ msg.textContent='No data rows found under the header.'; return; }
+  loadRows(res.raw); openStations={}; closePaste(); renderAll(true);
+  const unknown=[...new Set(ROWS.filter(r=>!r.known).map(r=>r.prefix))];
+  toast('Loaded '+ROWS.length+' couriers'+(unknown.length?' &middot; unknown prefixes: '+unknown.join(', '):''));
+};
+
+/* ---------- image downloads ---------- */
+document.getElementById('dlAllStations').onclick=downloadAllStations;
+document.getElementById('dlLow').onclick=downloadLow;
+document.getElementById('dlRoutes').onclick=downloadRoutes;
+document.getElementById('dlOverview').onclick=downloadOverview;
+document.getElementById('dlDelay').onclick=()=>snap(document.getElementById('delayTable'),'Delayed_first_POD_'+SEG+'_'+dstamp());
+document.getElementById('dlUtil').onclick=()=>snap(document.getElementById('utilTable'),'Utilization_'+SEG+'_'+dstamp());
+document.getElementById('delayMin').addEventListener('input',e=>{ const v=parseInt(e.target.value); if(!isNaN(v)&&v>=0){ DELAY_MIN=v; renderDelayed(); updatePills(); } });
+
+/* ---------- export ---------- */
+document.getElementById('exportBtn').addEventListener('click',()=>{
+  const wb=XLSX.utils.book_new();
+  const g={B2C:{t:T.b2c_pod_t,r:T.b2c_pod_r},B2B:{t:T.b2b_pod_t,r:T.b2b_pod_r}};
+  // station summary both segments
+  const summ=[];
+  ['B2C','B2B'].forEach(sg=>{
+    const save=SEG; SEG=sg; stationAgg().forEach(s=>{
+      summ.push({Segment:sg,Station:s.station,Couriers:s.crr,OFD:s.ofd,POD:s.pod,
+        'POD %':s.podpct===null?'':+s.podpct.toFixed(1),'SF %':s.sf===null?'':+s.sf.toFixed(1),
+        'At risk':s.risk,'Pickup crr':s.pkCrr,'Assigned':s.asg,'Pending':s.pend,'C2B %':s.pupPct===null?'':+s.pupPct.toFixed(1),
+        'Avg 1st POD':s.firstPodAvg===null?'':fmtMins(s.firstPodAvg),
+        Status:s.podpct===null?'No volume':(s.podpct>=g[sg].t?'On target':(s.podpct>=g[sg].r?'Below target':'At risk'))});
+    }); SEG=save;
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(summ),'Station Summary');
+  // low performers both segments
+  const low=[];
+  ['B2C','B2B'].forEach(sg=>{ const save=SEG; SEG=sg;
+    lowRows().forEach(r=>low.push({Segment:sg,'Emp #':r.emp,Route:r.route,Vendor:r.isp,City:r.city,OFD:r.ofd,POD:r.pod,'POD %':r.podpct,'PIN %':r.pinpct,'SF %':r.sf}));
+    SEG=save; });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(low.length?low:[{note:'none'}]),'Low Performers');
+  // utilization
+  const util=[];
+  ['B2C','B2B'].forEach(sg=>{ const save=SEG; SEG=sg;
+    utilRows().forEach(r=>util.push({Segment:sg,'Emp #':r.emp,Route:r.route,Vendor:r.isp,City:r.city,OFD:r.ofd,'Target':T.ofd_targets[r.isp],'Below by':T.ofd_targets[r.isp]-r.ofd}));
+    SEG=save; });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(util.length?util:[{note:'none'}]),'Low OFD');
+  // delayed first POD both segments
+  const dly=[];
+  ['B2C','B2B'].forEach(sg=>{ const save=SEG; SEG=sg;
+    delayedRows().forEach(r=>dly.push({Segment:sg,'Emp #':r.emp,Route:r.route,Vendor:r.isp,City:r.city,Station:r.station,Started:r.started,'1st POD took':fmtMins(r.firstPodMin),'Over by':fmtMins(r.firstPodMin-DELAY_MIN)}));
+    SEG=save; });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(dly.length?dly:[{note:'none'}]),'Delayed 1st POD');
+  // conflicts
+  const conf=confRows().map(r=>({'Emp #':r.emp,Route:r.route,Vendor:r.isp,Segment:r.seg,Station:r.station,OFD:r.ofd,POD:r.pod}));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(conf.length?conf:[{note:'none'}]),'POD Conflicts');
+  // dispatch times for all 14 locations
+  const disp=[]; const fp={}; const sv=SEG;
+  ['B2C','B2B'].forEach(sg=>{ SEG=sg; stationAgg().forEach(s=>{fp[s.station]={avg:s.firstPodAvg,crr:s.crr};}); }); SEG=sv;
+  CITIES.forEach(city=>{ [['B2C',city+' LMX'],['B2B',city+' St']].forEach(a=>{
+    const info=fp[a[1]]||{};
+    disp.push({Location:a[1],Segment:a[0],'Dispatch time':DISPATCH[a[1]]||'',Couriers:info.crr!=null?info.crr:'','Avg 1st POD':info.avg!=null?fmtMins(info.avg):''});
+  });});
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(disp),'Dispatch Times');
+  if(EXCLUDED.size) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([...EXCLUDED].map(e=>({'Excluded Emp #':e}))),'Excluded Staff');
+  const d=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,'Operations_Dashboard_'+d+'.xlsx');
+});
+
+function toast(msg){ const t=document.getElementById('toast'); t.innerHTML=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200); }
+
+/* ---------- boot ---------- */
+document.getElementById('exclAdd').onclick=addExcl;
+document.getElementById('exclInput').addEventListener('keydown',e=>{ if(e.key==='Enter') addExcl(); });
+document.getElementById('sumCopy').onclick=copyWA;
+document.getElementById('sumEmail').onclick=emailSummary;
+document.getElementById('sumDl').onclick=()=>snap(document.getElementById('sumSheet'),'Operations_Summary_'+dstamp());
+(function(){ const sh=document.getElementById('sumShare');
+  if(navigator.canShare && navigator.canShare({files:[new File([new Blob()],'x.png',{type:'image/png'})]})){
+    sh.style.display=''; sh.onclick=()=>shareImage(document.getElementById('sumSheet'),'Operations_Summary_'+dstamp(), summaryText(false));
+  }
+})();
+loadRows(SEED); bindTargets(); renderExclusions(); renderAll(true);
+</script>
+</body>
+</html>
