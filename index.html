@@ -365,6 +365,10 @@ select,input[type=number]{font-family:inherit;font-size:12.5px;border:1px solid 
       <div class="hd"><h3>Vendor performance by station</h3><span class="note">POD % per vendor at each station &middot; colour = status vs target</span></div>
       <div class="scroll"><table id="vendHeatTable" class="heat"></table></div>
     </div>
+    <div class="card" style="margin-bottom:18px">
+      <div class="hd"><h3>Avg OFD per vendor by station</h3><span class="note">OFD ÷ couriers per vendor at each station &middot; darker = higher load</span></div>
+      <div class="scroll"><table id="avgOfdHeatTable" class="heat"></table></div>
+    </div>
     <div class="grid2">
       <div class="card">
         <div class="hd"><h3>Avg OFD per vendor</h3><span class="note">OFD ÷ couriers</span></div>
@@ -828,6 +832,35 @@ function renderVendorHeatmap(){
       if(!f||f.ofd===0){ h+='<td class="h-na">—</td>'; return; }
       const cls=f.podpct===null?'h-na':(f.podpct>=g.t?'h-ok':(f.podpct>=g.r?'h-warn':'h-risk'));
       h+='<td class="'+cls+'">'+fmtPct(f.podpct,0)+'<small>'+f.crr+'c · '+f.ofd+'</small></td>';
+    });
+    h+='</tr>';
+  });
+  h+='</tbody>'; t.innerHTML=h;
+}
+function renderAvgOfdHeatmap(){
+  const t=document.getElementById('avgOfdHeatTable'); if(!t) return;
+  const stns=stationAgg();
+  if(!stns.length){ t.innerHTML='<tbody><tr><td class="empty">'+(ROWS.length?'No stations in this population.':'No data loaded.')+'</td></tr></tbody>'; return; }
+  const vtot={};
+  stns.forEach(s=>s.vendors.forEach(v=>{ vtot[v.isp]=(vtot[v.isp]||0)+v.ofd; }));
+  const vendors=Object.keys(vtot).sort((a,b)=>{
+    const pa=(a in VPRIORITY)?VPRIORITY[a]:100, pb=(b in VPRIORITY)?VPRIORITY[b]:100;
+    return pa-pb || vtot[b]-vtot[a];
+  });
+  // max avg for intensity scale
+  let maxAvg=0;
+  stns.forEach(s=>s.vendors.forEach(v=>{ if(v.crr>0) maxAvg=Math.max(maxAvg, v.ofd/v.crr); }));
+  if(maxAvg<=0) maxAvg=1;
+  let h='<thead><tr><th>Station</th>'+vendors.map(v=>'<th'+((v in VPRIORITY)?' class="h-pri"':'')+'>'+shortV(v)+'</th>').join('')+'</tr></thead><tbody>';
+  stns.forEach(s=>{
+    h+='<tr><td>'+s.station+'</td>';
+    vendors.forEach(v=>{
+      const f=s.vendors.find(x=>x.isp===v);
+      if(!f||f.crr===0){ h+='<td class="h-na">—</td>'; return; }
+      const avg=f.ofd/f.crr;
+      const a=(0.12+0.78*(avg/maxAvg)).toFixed(2);
+      const txt=(avg/maxAvg)>0.55?'#fff':'var(--brand-2)';
+      h+='<td style="background:rgba(109,40,217,'+a+');color:'+txt+'">'+avg.toFixed(1)+'<small style="color:'+txt+'">'+f.crr+'c · '+f.ofd+'</small></td>';
     });
     h+='</tr>';
   });
@@ -1546,7 +1579,7 @@ function updatePills(){
 /* ---------- render orchestration ---------- */
 function renderTab(){
   if(TAB==='summary') renderSummary();
-  else if(TAB==='overview'){ renderKPIs(); renderCharts(); renderVendorHeatmap(); renderOverviewStations(); }
+  else if(TAB==='overview'){ renderKPIs(); renderCharts(); renderVendorHeatmap(); renderAvgOfdHeatmap(); renderOverviewStations(); }
   else if(TAB==='stations') renderStations();
   else if(TAB==='routes') renderRoutes();
   else if(TAB==='low') renderLow();
