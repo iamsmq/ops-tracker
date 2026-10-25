@@ -158,7 +158,8 @@ select,input[type=number]{font-family:inherit;font-size:12.5px;border:1px solid 
 .stntoolbar .desc{font-size:11.5px;color:var(--muted)}
 .stngrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;align-items:start}
 @media(max-width:820px){.stngrid{grid-template-columns:1fr}}
-.stncard{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+.stncard{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.stn-cps-ref{position:absolute;top:5px;right:9px;font-size:10px;color:var(--muted);opacity:.5;font-variant-numeric:tabular-nums;z-index:2;pointer-events:none}
 .stncard.st-ok{border-top:3px solid var(--ok)}.stncard.st-warn{border-top:3px solid var(--warn)}.stncard.st-risk{border-top:3px solid var(--risk)}.stncard.st-idle{border-top:3px solid var(--idle)}
 .stncard-hd{padding:14px 16px;display:flex;align-items:flex-start;gap:10px}
 .stncard-name{font-size:15.5px;font-weight:680;letter-spacing:-.01em}
@@ -269,6 +270,22 @@ select,input[type=number]{font-family:inherit;font-size:12.5px;border:1px solid 
 .sum-attn{background:#f7fafb;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6}
 .sum-attn b{color:var(--brand-2)}
 .sum-attn .none{color:var(--ok);font-weight:600}
+.calc-cps{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin:14px 0 6px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--brand-ink)}
+.calc-cps .big{font-size:36px;font-weight:720;letter-spacing:-.02em;color:var(--brand-2);line-height:1}
+.calc-cps .big small{font-size:14px;font-weight:600;color:var(--muted)}
+.calc-cps .lab{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.calc-tbl{width:100%;border-collapse:collapse;margin-top:6px}
+.calc-tbl th,.calc-tbl td{padding:8px 10px;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid #f1f4f7}
+.calc-tbl th:first-child,.calc-tbl td:first-child{text-align:left}
+.calc-tbl thead th{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.calc-tbl tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:0}
+.reg-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px}
+@media(max-width:760px){.reg-strip{grid-template-columns:repeat(3,1fr)}}
+.reg-strip>div{background:var(--panel);padding:11px 8px;text-align:center}
+.reg-strip>div.hl{background:var(--brand-ink)}
+.reg-strip span{display:block;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.reg-strip b{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.reg-strip .hl b{color:var(--brand-2)}
 
 /* all-stations landscape export */
 .export-sheet{font-family:inherit;color:var(--ink)}
@@ -307,6 +324,7 @@ select,input[type=number]{font-family:inherit;font-size:12.5px;border:1px solid 
   <button data-tab="delayed">Delayed 1st POD <span class="pillcount" id="pcDelay">0</span></button>
   <button data-tab="conf">POD conflicts <span class="pillcount" id="pcConf">0</span></button>
   <button data-tab="targets">Targets</button>
+  <button data-tab="calc">Calculations</button>
 </div>
 
 <div class="wrap">
@@ -408,6 +426,7 @@ select,input[type=number]{font-family:inherit;font-size:12.5px;border:1px solid 
       <div><h3 id="routeTitle"></h3><div class="desc">Each station broken down by route, worst POD % first.</div></div>
       <div class="filterbar" style="margin-left:auto">
         <label class="eyebrow">Vendor</label><select id="routeVend"></select>
+        <button class="pngbtn mini-btn no-snap" id="routeExpandBtn">Expand all</button>
         <button class="pngbtn mini-btn no-snap" id="dlRoutes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
       </div>
     </div>
@@ -430,16 +449,15 @@ select,input[type=number]{font-family:inherit;font-size:12.5px;border:1px solid 
   <!-- UTILIZATION -->
   <div class="view" data-view="util">
     <div class="hint" id="utilHint"></div>
-    <div class="tablecard">
-      <div class="hd"><h3>Below OFD target</h3><span class="desc" id="utilDesc"></span>
-        <div class="filterbar">
-          <label class="eyebrow">Station</label><select id="utilStn"></select>
-          <label class="eyebrow">Vendor</label><select id="utilVend"></select>
-          <button class="pngbtn mini-btn no-snap" id="dlUtil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
-        </div>
+    <div class="stntoolbar">
+      <div><h3>Below OFD target</h3><div class="desc" id="utilDesc"></div></div>
+      <div class="filterbar" style="margin-left:auto">
+        <label class="eyebrow">Station</label><select id="utilStn"></select>
+        <label class="eyebrow">Vendor</label><select id="utilVend"></select>
+        <button class="pngbtn mini-btn no-snap" id="dlUtil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
       </div>
-      <div class="scroll"><table id="utilTable"></table></div>
     </div>
+    <div class="stngrid" id="utilGrid"></div>
   </div>
 
   <!-- DELAYED FIRST POD -->
@@ -499,6 +517,50 @@ select,input[type=number]{font-family:inherit;font-size:12.5px;border:1px solid 
       <table id="dispTable" class="mini disp-mini"></table>
     </div>
   </div>
+
+  <!-- CALCULATIONS -->
+  <div class="view" data-view="calc">
+    <div class="stntoolbar">
+      <div><h3>Cost per shipment</h3><div class="desc">Daily CPS by vendor class, station and region.</div></div>
+      <div class="filterbar" style="margin-left:auto">
+        <label class="eyebrow">Segment</label>
+        <select id="calc_seg"><option>All</option><option>B2C</option><option>B2B</option></select>
+        <button class="pngbtn mini-btn no-snap" id="dlCalc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
+      </div>
+    </div>
+    <div class="hint" id="calcHint"><div>&#9888;</div><div>Daily CPS. Vendors are classed <b>SMSA</b> (direct), <b>PPH</b> (name contains PPH) and <b>PPP</b> (all other outsourced). SMSA and PPH are fixed monthly per head (default 8,500); their monthly cost is divided by the working days below to get the daily cost. PPP is per shipment. B2C incentive is paid per delivered shipment. Heads and POD prefill from the loaded daily data for the selected segment; edit any field.</div></div>
+    <div class="tform">
+      <div class="tset">
+        <h3>SMSA &middot; direct</h3><p>Fixed monthly per head &divide; working days, plus daily fuel per head.</p>
+        <div class="frow"><label>Heads</label><input type="number" class="num" id="calc_smsaHeads"></div>
+        <div class="frow"><label>Monthly rate / head (SAR)</label><input type="number" class="num" id="calc_smsaRate"></div>
+        <div class="frow"><label>Fuel / head / day (SAR)</label><input type="number" class="num" id="calc_fuel"></div>
+        <div class="frow"><label>POD (shipments)</label><input type="number" class="num" id="calc_smsaPOD"></div>
+      </div>
+      <div class="tset">
+        <h3>PPH vendors</h3><p>Fixed monthly per head &divide; working days.</p>
+        <div class="frow"><label>Heads</label><input type="number" class="num" id="calc_pphHeads"></div>
+        <div class="frow"><label>Monthly rate / head (SAR)</label><input type="number" class="num" id="calc_pphRate"></div>
+        <div class="frow"><label>POD (shipments)</label><input type="number" class="num" id="calc_pphPOD"></div>
+      </div>
+      <div class="tset">
+        <h3>PPP vendors</h3><p>Per-shipment rate by vendor (default 7 SAR; set 6.5 where it applies). Cost = rate &times; shipments.</p>
+        <div id="calc_pppList" class="ofd-list"></div>
+      </div>
+      <div class="tset">
+        <h3>Working days &amp; B2C incentive</h3><p>Monthly &rarr; daily divisor. Incentive: SMSA B2C only, flat slab on (POD + pickups) above the threshold.</p>
+        <div class="frow"><label>Working days / month</label><input type="number" class="num" id="calc_days"></div>
+        <div class="frow"><label>Incentive threshold (POD+PUP)</label><input type="number" class="num" id="calc_incThr"></div>
+        <div class="frow"><label>Rate: 1&ndash;10 above (SAR)</label><input type="number" class="num" id="calc_incR1"></div>
+        <div class="frow"><label>Rate: 11&ndash;20 above (SAR)</label><input type="number" class="num" id="calc_incR2"></div>
+        <div class="frow"><label>Rate: 21+ above (SAR)</label><input type="number" class="num" id="calc_incR3"></div>
+      </div>
+    </div>
+    <div class="tset" style="margin-top:16px">
+      <div class="frow" style="border:0;padding-top:0"><label>Total shipments for CPS</label><input type="number" class="num" id="calc_totShip"></div>
+      <div id="calcResult"></div>
+    </div>
+  </div>
 </div>
 <div class="modal" id="pasteModal">
   <div class="modal-box">
@@ -544,6 +606,7 @@ function vendorOrder(vendors){
 }
 let EXCLUDED = new Set();
 let DISPATCH = {};                 // station label -> "HH:MM"
+let PPP_RATES = {};                // PPP vendor -> rate (default 7)
 let DELAY_MIN = 120;               // first-POD delay threshold in minutes (2h)
 let courierOpen = {};              // station label -> bool (courier list expanded)
 let STN_VENDOR = '';               // stations tab vendor filter
@@ -554,7 +617,7 @@ function toggleCourVendor(stn,isp){ const k=cvKey(stn,isp); if(courVendCollapsed
 let T = {
   b2c_pod_t:85, b2c_pod_r:80, b2c_c2b:70,
   b2b_pod_t:95, b2b_pod_r:90,
-  ofd_targets:{'SMSA':70,'Mutairi PPH':70,'Core Support PPH':70}
+  ofd_targets:{'SMSA':55,'Mutairi PPH':55,'Core Support PPH':55}
 };
 
 let ROWS=[];            // all derived courier rows
@@ -944,6 +1007,7 @@ function routeAgg(vendorFilter){
   }).sort((a,b)=>a.worst-b.worst);
 }
 let routeOpen=new Set();
+let routeExpandAll=false;
 function rKey(st,rt){ return st+'||'+rt; }
 function toggleRoute(st,rt){ const k=rKey(st,rt); if(routeOpen.has(k)) routeOpen.delete(k); else routeOpen.add(k); renderRoutes(); }
 function vpRank(isp){ return (isp in VPRIORITY)?VPRIORITY[isp]:100; }
@@ -983,7 +1047,8 @@ function renderRoutes(){
   const stns=routeAgg(vf);
   const grid=document.getElementById('routeGrid');
   if(!stns.length){ grid.innerHTML='<div class="empty">'+(ROWS.length?'No routes match this filter.':'No data loaded. Use Paste data to import a Spanel export.')+'</div>'; return; }
-  grid.innerHTML=stns.map(st=>routeCardHTML(st,g,(s,r)=>routeOpen.has(rKey(s,r)))).join('');
+  grid.innerHTML=stns.map(st=>routeCardHTML(st,g,(s,r)=>routeExpandAll||routeOpen.has(rKey(s,r)))).join('');
+  const eb=document.getElementById('routeExpandBtn'); if(eb) eb.textContent=routeExpandAll?'Collapse all':'Expand all';
 }
 async function downloadRoutes(){
   const vSel=document.getElementById('routeVend');
@@ -1023,7 +1088,7 @@ function summaryCardHTML(s,g){
   const ordVend=vendorOrder(s.vendors); const vN=ordVend.length;
   const c2bCls = s.pupPct===null?'':(s.pupPct>=T.b2c_c2b?'c2b-ok':'c2b-bad');
   const isB2C = SEG==='B2C';
-  return '<div class="stncard st-'+st+'">'+
+  return '<div class="stncard st-'+st+'">'+'<div class="stn-cps-ref">'+(s.pod>0?Math.round(stationCost(s.couriers)/s.pod):'')+'</div>'+
     '<div class="stncard-hd">'+
       '<div><div class="stncard-name">'+s.station+'</div><div class="stncard-sub">'+s.crr+' couriers &middot; '+vN+' vendor'+(vN>1?'s':'')+' &middot; '+stTxt+'</div></div>'+
       '<div class="stncard-pod '+st+'"><span>POD</span><b>'+fmtPct(s.podpct,1)+'</b></div>'+
@@ -1033,6 +1098,7 @@ function summaryCardHTML(s,g){
       '<div><span>POD</span><b>'+s.pod+'</b></div><div><span>SF</span><b>'+fmtPct(s.sf,0)+'</b></div>'+
       '<div><span>At risk</span><b>'+(s.risk||'0')+'</b></div>'+
     '</div>'+
+    
     (isB2C?'<div class="pickup"><div><span>Pickup crr</span><b>'+s.pkCrr+'</b></div><div><span>Assigned</span><b>'+s.asg+'</b></div>'+
       '<div><span>Pending</span><b>'+s.pend+'</b></div><div><span>C2B %</span><b class="'+c2bCls+'">'+fmtPct(s.pupPct,0)+'</b></div></div>':'')+
     (isB2C?'<div class="stnsec"><div class="lbl">By vendor <span class="cnt">'+vN+'</span></div>'+
@@ -1164,7 +1230,7 @@ function renderStations(){
       : '<tr><th>Route</th><th>Emp</th><th>OFD</th><th>POD</th><th>POD%</th><th>SF</th></tr>';
     const open = !!courierOpen[s.station];
     const c2bCls = s.pupPct===null?'':(s.pupPct>=T.b2c_c2b?'c2b-ok':'c2b-bad');
-    return '<div class="stncard st-'+st+(open?' open':'')+'" id="card_'+safeId(s.station)+'">'+
+    return '<div class="stncard st-'+st+(open?' open':'')+'" id="card_'+safeId(s.station)+'">'+'<div class="stn-cps-ref">'+(s.pod>0?Math.round(stationCost(s.couriers)/s.pod):'')+'</div>'+
       '<div class="stncard-hd">'+
         '<div><div class="stncard-name">'+s.station+'</div><div class="stncard-sub">'+s.crr+' couriers &middot; '+vN+' vendor'+(vN>1?'s':'')+' &middot; '+stTxt+'</div></div>'+
         '<div class="stncard-pod '+st+'"><span>POD</span><b>'+fmtPct(s.podpct,1)+'</b></div>'+
@@ -1177,6 +1243,7 @@ function renderStations(){
         '<div><span>SF</span><b>'+fmtPct(s.sf,0)+'</b></div>'+
         '<div><span>At risk</span><b>'+(s.risk||'0')+'</b></div>'+
       '</div>'+
+      
       '<div class="pickup">'+
         '<div><span>Pickup crr</span><b>'+s.pkCrr+'</b></div>'+
         '<div><span>Assigned</span><b>'+s.asg+'</b></div>'+
@@ -1413,35 +1480,65 @@ function utilRows(){
   return segRows().filter(r=>!r.conflict && (r.isp in T.ofd_targets) && r.ofd!==null && r.ofd < T.ofd_targets[r.isp])
     .sort((a,b)=>(a.ofd)-(b.ofd));
 }
+function utilCardHTML(station,rows){
+  const least=rows[0].ofd;
+  const body=rows.map(r=>{
+    const gap=T.ofd_targets[r.isp]-r.ofd;
+    const rc=r.podpct===null?'':(r.podpct>=tgt().t?'pod-ok':(r.podpct>=tgt().r?'pod-warn':'pod-risk'));
+    return '<tr><td>'+r.emp+'</td><td>'+r.route+'</td><td class="vend-cell">'+shortV(r.isp)+'</td>'+
+      '<td class="pod-risk">'+r.ofd+' <span style="color:var(--muted);font-weight:500">(-'+gap+')</span></td>'+
+      '<td>'+T.ofd_targets[r.isp]+'</td><td class="'+rc+'">'+fmtPct(r.podpct,0)+'</td><td>'+fmtPct(r.sf,0)+'</td></tr>';
+  }).join('');
+  return '<div class="stncard st-risk" id="utilcard_'+safeId(station)+'">'+
+    '<div class="stncard-hd"><div><div class="stncard-name">'+station+'</div><div class="stncard-sub">'+rows.length+' below OFD target</div></div>'+
+    '<div class="stncard-pod risk"><span>Lowest</span><b>'+least+'</b></div></div>'+
+    '<div class="stnsec"><div class="scroll"><table class="mini"><thead><tr><th>Emp</th><th>Route</th><th>Vendor</th><th>OFD</th><th>Target</th><th>POD%</th><th>SF</th></tr></thead><tbody>'+body+'</tbody></table></div></div></div>';
+}
+function utilGroups(){
+  let data=utilRows();
+  const stnSel=document.getElementById('utilStn'), vSel=document.getElementById('utilVend');
+  if(stnSel && stnSel.value && stnSel.value!=='All stations') data=data.filter(r=>r.station===stnSel.value);
+  if(vSel && vSel.value && vSel.value!=='All vendors') data=data.filter(r=>r.isp===vSel.value);
+  const groups={};
+  data.forEach(r=>{ (groups[r.station]=groups[r.station]||[]).push(r); });
+  return Object.entries(groups).map(([station,rows])=>({station,rows:rows.sort((a,b)=>a.ofd-b.ofd)}))
+    .sort((a,b)=> b.rows.length-a.rows.length || a.rows[0].ofd-b.rows[0].ofd);
+}
 function renderUtil(){
-  const t=document.getElementById('utilTable');
+  const grid=document.getElementById('utilGrid');
   if(SEG!=='B2C'){
     document.getElementById('utilHint').innerHTML='<div>&#9888;</div><div>OFD targets do not apply to B2B priority routes, so nothing is flagged here. Switch to the B2C tool to review last-mile utilization.</div>';
     document.getElementById('utilDesc').textContent='B2B has no OFD target.';
-    t.innerHTML='<tbody><tr><td class="empty" colspan="7">Utilization is tracked for B2C last-mile couriers only.</td></tr></tbody>';
+    grid.innerHTML='<div class="empty">Utilization is tracked for B2C last-mile couriers only.</div>';
     return;
   }
   const enabled=Object.keys(T.ofd_targets);
   const vend=enabled.length? enabled.map(v=>shortV(v)+' ('+T.ofd_targets[v]+')').join(', ') : 'none';
   document.getElementById('utilHint').innerHTML='<div>&#9888;</div><div>OFD targets apply to <b>'+vend+'</b> on B2C. Vendors without a target set are never flagged. Adjust the vendor list under Targets.</div>';
-  document.getElementById('utilDesc').textContent='Couriers below their vendor OFD target, '+SEG+' population.';
-  let data=utilRows();
+  document.getElementById('utilDesc').textContent='Couriers below their vendor OFD target, grouped by station.';
   const stnSel=document.getElementById('utilStn'), vSel=document.getElementById('utilVend');
   fillSel(stnSel, ['All stations',...new Set(utilRows().map(r=>r.station))], renderUtil);
   fillSel(vSel, ['All vendors',...new Set(utilRows().map(r=>r.isp))], renderUtil);
-  if(stnSel.value && stnSel.value!=='All stations') data=data.filter(r=>r.station===stnSel.value);
-  if(vSel.value && vSel.value!=='All vendors') data=data.filter(r=>r.isp===vSel.value);
-  data=sortRows(data,'util',{key:'ofd',dir:'asc'});
-  if(data.length===0){ t.innerHTML='<tbody><tr><td class="empty" colspan="7">No couriers below their vendor OFD target with these filters.</td></tr></tbody>'; return; }
-  const cols=[['emp','Emp #'],['route','Route'],['isp','Vendor'],['city','City'],['ofd','OFD'],['podpct','POD %'],['sf','SF']];
-  let h='<thead><tr>'+cols.map(c=>'<th data-k="'+c[0]+'" data-tbl="util">'+c[1]+arrow('util',c[0])+'</th>').join('')+'</tr></thead><tbody>';
-  data.forEach(r=>{
-    const gap=T.ofd_targets[r.isp]-r.ofd;
-    h+='<tr><td>'+r.emp+'</td><td>'+r.route+'</td><td>'+r.isp+'</td><td>'+r.city+'</td>'+
-       '<td class="num pod-risk">'+r.ofd+' <span style="color:var(--muted);font-weight:500">(-'+gap+')</span></td>'+
-       '<td class="num '+podCls(r.podpct)+'">'+fmtPct(r.podpct,0)+'</td><td class="num">'+fmtPct(r.sf,0)+'</td></tr>';
-  });
-  h+='</tbody>'; t.innerHTML=h; bindSort();
+  const groups=utilGroups();
+  if(!groups.length){ grid.innerHTML='<div class="empty">No couriers below their vendor OFD target with these filters.</div>'; return; }
+  grid.innerHTML=groups.map(gp=>utilCardHTML(gp.station,gp.rows)).join('');
+}
+async function downloadUtil(){
+  const groups=utilGroups();
+  if(!groups.length){ alert('No utilization flags to export.'); return; }
+  const n=groups.length;
+  const cols = n<=1?1 : (n>=5?3:2);
+  const cardW=460, gap=14, pad=22;
+  const width=cols*cardW+(cols-1)*gap+pad*2;
+  const wrap=document.createElement('div');
+  wrap.className='export-sheet';
+  wrap.style.cssText='position:fixed;left:-20000px;top:0;width:'+width+'px;background:#fff;padding:'+pad+'px';
+  wrap.innerHTML='<div class="export-hd"><h2>B2C couriers below OFD target</h2><span>'+nowStamp()+'</span></div>'+
+    '<div class="export-grid" style="grid-template-columns:repeat('+cols+',1fr)">'+groups.map(gp=>utilCardHTML(gp.station,gp.rows)).join('')+'</div>';
+  document.body.appendChild(wrap); void wrap.offsetHeight;
+  try{ wrap.querySelectorAll('.scroll').forEach(s=>s.style.overflow='visible'); await snapNode(wrap,'Utilization_'+SEG+'_'+dstamp()); }
+  catch(err){ alert('Export failed: '+err.message); }
+  finally{ document.body.removeChild(wrap); }
 }
 
 /* ---------- conflicts ---------- */
@@ -1499,6 +1596,166 @@ function renderDispatch(){
 function setDispatch(label,val){ if(val) DISPATCH[label]=val; else delete DISPATCH[label]; }
 
 /* ---------- exclusions ---------- */
+/* ---------- calculations (CPS) ---------- */
+function costClass(isp){ return isp==='SMSA'?'SMSA':(/PPH/i.test(isp)?'PPH':'PPP'); }
+function calcSeg(){ const e=document.getElementById('calc_seg'); return (e && e.value && e.value!=='All') ? e.value : ''; }
+// SMSA B2C incentive: flat slab on (POD + pickups) above threshold. CORE/Mutairi get none.
+function courierB2CInc(r,thr,r1,r2,r3){
+  if(r.seg!=='B2C' || r.isp!=='SMSA') return 0;
+  const units=(r.pod||0)+Math.max(0,(r.assigned||0)-(r.pendingPUP||0));
+  const above=units-thr;
+  if(above<=0) return 0;
+  const rate=above<=10?r1:(above<=20?r2:r3);
+  return above*rate;
+}
+function b2cIncentive(rows,thr,r1,r2,r3){ return rows.reduce((a,r)=>a+courierB2CInc(r,thr,r1,r2,r3),0); }
+// daily cost of a set of couriers, using current calc rates (or defaults if the Calc tab is untouched)
+function cRate(id,def){ const v=parseFloat((document.getElementById(id)||{}).value); return isNaN(v)?def:v; }
+function stationCost(couriers){
+  const days=cRate('calc_days',26)||26, smsaRate=cRate('calc_smsaRate',8500), fuel=cRate('calc_fuel',35), pphRate=cRate('calc_pphRate',8500);
+  const thr=cRate('calc_incThr',55), r1=cRate('calc_incR1',3), r2=cRate('calc_incR2',3.5), r3=cRate('calc_incR3',4);
+  const smsa=new Set(), pph=new Set(); let pppC=0, inc=0;
+  couriers.forEach(r=>{ const c=costClass(r.isp); if(c==='SMSA')smsa.add(r.emp); else if(c==='PPH')pph.add(r.emp); else pppC+=pppRate(r.isp)*(r.pod||0); inc+=courierB2CInc(r,thr,r1,r2,r3); });
+  return smsa.size*smsaRate/days + smsa.size*fuel + pph.size*pphRate/days + pppC + inc;
+}
+// per-vendor PPP rates. User override wins; else vendor default (6.5 for the named vendors), else 7.
+function pppDefault(v){ const nm=(v||'').toLowerCase(); return /rapid trend|mutairi|ags|ali abdulla|core support/.test(nm) ? 6.5 : 7; }
+function pppRate(v){ const r=PPP_RATES[v]; if(r!==undefined && r!==''){ const n=parseFloat(r); if(!isNaN(n)) return n; } return pppDefault(v); }
+function pppVendPOD(rows){ const m={}; rows.forEach(r=>{ if(costClass(r.isp)==='PPP'){ m[r.isp]=(m[r.isp]||0)+(r.pod||0); } }); return m; }
+function pppCostOf(rows){ const m=pppVendPOD(rows); let c=0,pod=0; for(const v in m){ c+=pppRate(v)*m[v]; pod+=m[v]; } return {cost:c,pod:pod}; }
+function renderPppList(){
+  const box=document.getElementById('calc_pppList'); if(!box) return;
+  let rows=ROWS.filter(r=>!r.excluded); const seg=calcSeg(); if(seg) rows=rows.filter(r=>r.seg===seg);
+  const m=pppVendPOD(rows);
+  const vendors=Object.keys(m).sort((a,b)=>m[b]-m[a]);
+  if(!vendors.length){ box.innerHTML='<p style="color:var(--muted);font-size:12px">No PPP vendors in this selection.</p>'; return; }
+  box.innerHTML=vendors.map(v=>'<div class="ofd-row" data-v="'+v.replace(/"/g,'&quot;')+'">'+
+    '<label>'+shortV(v)+' <span style="color:var(--muted);font-weight:500">'+m[v]+' shp</span></label>'+
+    '<input type="number" step="0.5" class="num ppp-rate" value="'+pppRate(v)+'"></div>').join('');
+  box.querySelectorAll('.ofd-row').forEach(row=>{
+    const v=row.dataset.v, inp=row.querySelector('.ppp-rate');
+    inp.oninput=()=>{ PPP_RATES[v]=inp.value; calcResult(); };
+  });
+}
+function costBase(seg){
+  let rows=ROWS.filter(r=>!r.excluded);
+  if(seg) rows=rows.filter(r=>r.seg===seg);
+  const heads={SMSA:new Set(),PPH:new Set(),PPP:new Set()};
+  const pod={SMSA:0,PPH:0,PPP:0};
+  let b2cSmsaPOD=0;
+  rows.forEach(r=>{ const c=costClass(r.isp); heads[c].add(r.emp); pod[c]+=(r.pod||0); if(r.seg==='B2C'&&r.isp==='SMSA') b2cSmsaPOD+=(r.pod||0); });
+  return {smsaHeads:heads.SMSA.size,pphHeads:heads.PPH.size,pppHeads:heads.PPP.size,
+    smsaPOD:pod.SMSA,pphPOD:pod.PPH,pppPOD:pod.PPP,totPOD:pod.SMSA+pod.PPH+pod.PPP,b2cSmsaPOD:b2cSmsaPOD};
+}
+function applyCalcBase(seg){
+  const b=costBase(seg);
+  const put=(id,v)=>{ const e=document.getElementById(id); if(e) e.value=v; };
+  put('calc_smsaHeads',b.smsaHeads); put('calc_smsaPOD',b.smsaPOD);
+  put('calc_pphHeads',b.pphHeads); put('calc_pphPOD',b.pphPOD);
+  put('calc_totShip',b.totPOD);
+  renderPppList();
+}
+function renderCalc(){
+  const setRate=(id,v)=>{ const e=document.getElementById(id); if(e && e.value==='') e.value=v; };
+  setRate('calc_smsaRate',8500); setRate('calc_pphRate',8500);
+  setRate('calc_days',26); setRate('calc_fuel',35);
+  setRate('calc_incThr',55); setRate('calc_incR1',3); setRate('calc_incR2',3.5); setRate('calc_incR3',4);
+  // derive data fields on first visit; segment change re-derives (see bindCalc)
+  if(document.getElementById('calc_smsaHeads').value==='') applyCalcBase(calcSeg());
+  renderPppList();
+  calcResult();
+}
+function calcResult(){
+  const n=id=>{ const v=parseFloat((document.getElementById(id)||{}).value); return isNaN(v)?0:v; };
+  const days=n('calc_days')||26;
+  const seg0=calcSeg();
+  const thr=n('calc_incThr')||55, r1=n('calc_incR1'), r2=n('calc_incR2'), r3=n('calc_incR3');
+  let incRows=ROWS.filter(r=>!r.excluded); if(seg0) incRows=incRows.filter(r=>r.seg===seg0);
+  const smsaCost=n('calc_smsaHeads')*n('calc_smsaRate')/days + n('calc_smsaHeads')*n('calc_fuel');
+  const pphCost=n('calc_pphHeads')*n('calc_pphRate')/days;
+  const pppInfo=pppCostOf(incRows); const pppCost=pppInfo.cost;
+  const b2cInc=b2cIncentive(incRows,thr,r1,r2,r3);
+  const b2cSmsaPOD=incRows.filter(r=>r.seg==='B2C'&&r.isp==='SMSA').reduce((a,r)=>a+(r.pod||0),0);
+  const total=smsaCost+pphCost+pppCost+b2cInc;
+  const totShip=n('calc_totShip');
+  const cps = totShip>0 ? total/totShip : null;
+  const sar=v=>v.toLocaleString('en-US',{maximumFractionDigits:0});
+  const cps1=v=>v===null?'—':v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const classCps=(cost,pod)=>pod>0?cps1(cost/pod):'—';
+  const box=document.getElementById('calcResult');
+  const seg=calcSeg();
+  const scope=seg||'Region';
+  // totals across loaded (non-excluded) couriers for the selected segment
+  let allRows=ROWS.filter(r=>!r.excluded); if(seg) allRows=allRows.filter(r=>r.seg===seg);
+  const regStations=new Set(allRows.map(r=>r.station)).size;
+  const regHeads=new Set(allRows.map(r=>r.emp)).size;
+  const regOFD=allRows.reduce((a,r)=>a+(r.ofd||0),0);
+  const regPOD=allRows.reduce((a,r)=>a+(r.pod||0),0);
+  const regDel=regOFD>0?regPOD/regOFD*100:null;
+  const regStrip='<div class="reg-strip">'+
+    '<div><span>Stations</span><b>'+regStations+'</b></div>'+
+    '<div><span>Couriers</span><b>'+sar(regHeads)+'</b></div>'+
+    '<div><span>OFD</span><b>'+sar(regOFD)+'</b></div>'+
+    '<div><span>Delivered</span><b>'+sar(regPOD)+'</b></div>'+
+    '<div><span>Delivery %</span><b>'+(regDel===null?'—':regDel.toFixed(1)+'%')+'</b></div>'+
+    '<div><span>Daily cost</span><b>'+sar(total)+'</b></div>'+
+    '<div class="hl"><span>'+scope+' CPS</span><b>'+cps1(cps===null?0:cps)+' SAR</b></div>'+
+    '</div>';
+  box.innerHTML=
+    regStrip+
+    '<div class="calc-cps"><div><div class="lab">Daily cost per shipment</div><div class="big">'+cps1(cps===null?0:cps)+' <small>SAR</small></div></div>'+
+      '<div style="margin-left:auto;font-size:12.5px;color:var(--muted);text-align:right">Daily cost <b style="color:var(--ink)">'+sar(total)+' SAR</b><br>over <b style="color:var(--ink)">'+sar(totShip)+'</b> shipments &middot; '+days+' working days</div></div>'+
+    '<table class="calc-tbl"><thead><tr><th>Class</th><th>Heads</th><th>POD</th><th>Daily cost (SAR)</th><th>CPS (SAR)</th></tr></thead><tbody>'+
+      '<tr><td>SMSA</td><td>'+sar(n("calc_smsaHeads"))+'</td><td>'+sar(n("calc_smsaPOD"))+'</td><td>'+sar(smsaCost)+'</td><td>'+classCps(smsaCost,n("calc_smsaPOD"))+'</td></tr>'+
+      '<tr><td>PPH</td><td>'+sar(n("calc_pphHeads"))+'</td><td>'+sar(n("calc_pphPOD"))+'</td><td>'+sar(pphCost)+'</td><td>'+classCps(pphCost,n("calc_pphPOD"))+'</td></tr>'+
+      '<tr><td>PPP</td><td>'+sar(pppInfo.pod)+' shp</td><td>'+sar(pppInfo.pod)+'</td><td>'+sar(pppCost)+'</td><td>'+classCps(pppCost,pppInfo.pod)+'</td></tr>'+
+      '<tr><td>B2C incentive</td><td>&mdash;</td><td>'+sar(b2cSmsaPOD)+'</td><td>'+sar(b2cInc)+'</td><td>'+classCps(b2cInc,b2cSmsaPOD)+'</td></tr>'+
+      '</tbody><tfoot><tr><td>Total</td><td></td><td>'+sar(n("calc_totShip"))+'</td><td>'+sar(total)+'</td><td>'+cps1(cps===null?0:cps)+'</td></tr></tfoot></table>'+
+    stationCpsTable({days:days,smsaRate:n('calc_smsaRate'),fuel:n('calc_fuel'),pphRate:n('calc_pphRate'),thr:thr,r1:r1,r2:r2,r3:r3,sar:sar,cps1:cps1,seg:seg});
+}
+function stationCpsTable(v){
+  let rows=ROWS.filter(r=>!r.excluded);
+  if(v.seg) rows=rows.filter(r=>r.seg===v.seg);
+  if(!rows.length) return '';
+  const byStn={};
+  rows.forEach(r=>{ const st=r.station; if(!byStn[st]) byStn[st]={station:st,smsa:new Set(),pph:new Set(),pppPOD:0,pppCost:0,pod:0,inc:0};
+    const c=costClass(r.isp); if(c==='SMSA')byStn[st].smsa.add(r.emp); else if(c==='PPH')byStn[st].pph.add(r.emp); else { byStn[st].pppPOD+=(r.pod||0); byStn[st].pppCost+=pppRate(r.isp)*(r.pod||0); }
+    byStn[st].pod+=(r.pod||0); byStn[st].inc+=courierB2CInc(r,v.thr,v.r1,v.r2,v.r3); });
+  const list=Object.values(byStn).map(s=>{
+    const smsaC=s.smsa.size*v.smsaRate/v.days + s.smsa.size*(v.fuel||0), pphC=s.pph.size*v.pphRate/v.days, pppC=s.pppCost, incC=s.inc;
+    const tot=smsaC+pphC+pppC+incC;
+    return {station:s.station,smsaH:s.smsa.size,pphH:s.pph.size,pppS:s.pppPOD,pod:s.pod,cost:tot,cps:s.pod>0?tot/s.pod:null};
+  }).sort((a,b)=>(b.cps??-1)-(a.cps??-1));
+  const tSmsa=list.reduce((a,s)=>a+s.smsaH,0), tPph=list.reduce((a,s)=>a+s.pphH,0),
+        tPpp=list.reduce((a,s)=>a+s.pppS,0), tPod=list.reduce((a,s)=>a+s.pod,0), tCost=list.reduce((a,s)=>a+s.cost,0);
+  const tCps=tPod>0?tCost/tPod:null;
+  const lbl=v.seg||'All';
+  let h='<h3 style="margin:20px 0 6px;font-size:14px">'+lbl+' station-level CPS</h3>'+
+    '<div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Daily, from loaded data and the rates above. Heads counted per station. Highest CPS first. Incentive applies to B2C shipments only.</div>'+
+    '<table class="calc-tbl"><thead><tr><th>Station</th><th>SMSA hd</th><th>PPH hd</th><th>PPP shp</th><th>POD</th><th>Daily cost (SAR)</th><th>CPS (SAR)</th></tr></thead><tbody>';
+  list.forEach(s=>{ h+='<tr><td>'+s.station+'</td><td>'+s.smsaH+'</td><td>'+s.pphH+'</td><td>'+v.sar(s.pppS)+'</td><td>'+v.sar(s.pod)+'</td><td>'+v.sar(s.cost)+'</td><td>'+(s.cps===null?'—':v.cps1(s.cps))+'</td></tr>'; });
+  h+='</tbody><tfoot><tr><td>'+lbl+' total</td><td>'+tSmsa+'</td><td>'+tPph+'</td><td>'+v.sar(tPpp)+'</td><td>'+v.sar(tPod)+'</td><td>'+v.sar(tCost)+'</td><td>'+(tCps===null?'—':v.cps1(tCps))+'</td></tr></tfoot></table>';
+  return h;
+}
+function bindCalc(){
+  ['calc_smsaHeads','calc_smsaRate','calc_fuel','calc_smsaPOD','calc_pphHeads','calc_pphRate','calc_pphPOD','calc_days','calc_incThr','calc_incR1','calc_incR2','calc_incR3','calc_totShip']
+    .forEach(id=>{ const e=document.getElementById(id); if(e) e.addEventListener('input',calcResult); });
+  const segEl=document.getElementById('calc_seg');
+  if(segEl) segEl.addEventListener('change',()=>{ applyCalcBase(calcSeg()); calcResult(); });
+  const dl=document.getElementById('dlCalc'); if(dl) dl.onclick=downloadCalc;
+}
+async function downloadCalc(){
+  if(!ROWS.length){ alert('No data to export. Paste or import a Spanel export first.'); return; }
+  const el=document.getElementById('calcResult'); if(!el) return;
+  const seg=calcSeg()||'Region';
+  const wrap=document.createElement('div'); wrap.className='export-sheet';
+  wrap.style.cssText='position:fixed;left:-20000px;top:0;width:900px;background:#fff;padding:22px';
+  wrap.innerHTML='<div class="export-hd"><h2>'+seg+' cost per shipment</h2><span>'+nowStamp()+'</span></div>'+el.innerHTML;
+  document.body.appendChild(wrap); void wrap.offsetHeight;
+  try{ await snapNode(wrap,'CPS_'+seg+'_'+dstamp()); }
+  catch(err){ alert('Export failed: '+err.message); }
+  finally{ document.body.removeChild(wrap); }
+}
 function renderExclusions(){
   const box=document.getElementById('exclChips'); if(!box) return;
   const arr=[...EXCLUDED];
@@ -1587,9 +1844,10 @@ function renderTab(){
   else if(TAB==='delayed') renderDelayed();
   else if(TAB==='conf') renderConf();
   else if(TAB==='targets'){ syncTargetInputs(); renderExclusions(); renderDispatch(); }
+  else if(TAB==='calc') renderCalc();
 }
 function renderAll(resetFilters){
-  if(resetFilters){ ['lowStn','lowVend','delayStn','utilStn','utilVend','stnVend','routeVend'].forEach(id=>{const s=document.getElementById(id); if(s) s.dataset.filled='';}); STN_VENDOR=''; courVendCollapsed.clear(); routeOpen.clear(); }
+  if(resetFilters){ ['lowStn','lowVend','delayStn','utilStn','utilVend','stnVend','routeVend'].forEach(id=>{const s=document.getElementById(id); if(s) s.dataset.filled='';}); STN_VENDOR=''; courVendCollapsed.clear(); routeOpen.clear(); routeExpandAll=false; }
   updatePills(); renderTab();
   const total=ROWS.length, exc=ROWS.filter(r=>r.excluded).length;
   document.getElementById('meta').innerHTML='<span class="num">'+total+'</span> couriers &middot; <span class="num">'+ROWS.filter(r=>r.seg==='B2C'&&!r.excluded).length+'</span> B2C / <span class="num">'+ROWS.filter(r=>r.seg==='B2B'&&!r.excluded).length+'</span> B2B'+(exc?' &middot; <span class="num">'+exc+'</span> excluded':'');
@@ -1695,9 +1953,10 @@ document.getElementById('pasteLoad').onclick=()=>{
 document.getElementById('dlAllStations').onclick=downloadAllStations;
 document.getElementById('dlLow').onclick=downloadLow;
 document.getElementById('dlRoutes').onclick=downloadRoutes;
+document.getElementById('routeExpandBtn').onclick=()=>{ routeExpandAll=!routeExpandAll; renderRoutes(); };
 document.getElementById('dlOverview').onclick=downloadOverview;
 document.getElementById('dlDelay').onclick=()=>snap(document.getElementById('delayTable'),'Delayed_first_POD_'+SEG+'_'+dstamp());
-document.getElementById('dlUtil').onclick=()=>snap(document.getElementById('utilTable'),'Utilization_'+SEG+'_'+dstamp());
+document.getElementById('dlUtil').onclick=downloadUtil;
 document.getElementById('delayMin').addEventListener('input',e=>{ const v=parseInt(e.target.value); if(!isNaN(v)&&v>=0){ DELAY_MIN=v; renderDelayed(); updatePills(); } });
 
 /* ---------- export ---------- */
@@ -1763,7 +2022,7 @@ document.getElementById('sumDl').onclick=()=>snap(document.getElementById('sumSh
     sh.style.display=''; sh.onclick=()=>shareImage(document.getElementById('sumSheet'),'Operations_Summary_'+dstamp(), summaryText(false));
   }
 })();
-loadRows(SEED); bindTargets(); renderExclusions(); renderAll(true);
+loadRows(SEED); bindTargets(); bindCalc(); renderExclusions(); renderAll(true);
 </script>
 </body>
 </html>
