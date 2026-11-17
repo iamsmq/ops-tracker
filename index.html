@@ -111,6 +111,7 @@ tbody tr:hover{background:#f8fafb}
 .tag.ok{background:var(--ok-bg);color:var(--ok)} .tag.warn{background:var(--warn-bg);color:var(--warn)}
 .tag.risk{background:var(--risk-bg);color:var(--risk)} .tag.idle{background:var(--idle-bg);color:var(--idle)}
 .pod-ok{color:var(--ok);font-weight:640}.pod-warn{color:var(--warn);font-weight:640}.pod-risk{color:var(--risk);font-weight:700}
+.mini tr.totrow td{border-top:2px solid var(--line);background:var(--idle-bg);font-weight:700}
 
 .tablecard{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}
 .tablecard .hd{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -333,6 +334,7 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
 <div class="subnav" id="subnav">
   <button data-tab="summary" class="on">Summary</button>
   <button data-tab="overview">Overview</button>
+  <button data-tab="riyadh">Riyadh B2C</button>
   <button data-tab="stations">Stations</button>
   <button data-tab="routes">Routes</button>
   <button data-tab="low">Low performers <span class="pillcount" id="pcLow">0</span></button>
@@ -422,6 +424,17 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
       <div class="scroll"><table id="ovStnTable" class="mini"></table></div>
     </div>
     </div>
+  </div>
+
+  <!-- RIYADH B2C -->
+  <div class="view" data-view="riyadh">
+    <div class="stntoolbar no-snap">
+      <div><h3>Riyadh B2C performance</h3><div class="desc">All Riyadh last-mile (RUH 1&ndash;5) rolled into one view &middot; always B2C, independent of the region filter.</div></div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="pngbtn" id="dlRiyadh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Download page</button>
+      </div>
+    </div>
+    <div id="riyadhSheet"></div>
   </div>
 
   <!-- STATIONS -->
@@ -799,7 +812,7 @@ function kpi(lab,val,unit,sub,cls){
 }
 
 /* ---------- charts ---------- */
-const CANVAS={stn:'stnChart',status:'statusChart',vend:'vendChart',third:'thirdChart',load:'loadChart',avgVend:'avgVendChart',avgLoc:'avgLocChart'};
+const CANVAS={stn:'stnChart',status:'statusChart',vend:'vendChart',third:'thirdChart',load:'loadChart',avgVend:'avgVendChart',avgLoc:'avgLocChart',ryPod:'ryPodChart',ryVend:'ryVendChart'};
 function destroy(id){
   if(charts[id]){ try{charts[id].destroy();}catch(e){} delete charts[id]; }
   const ex = (typeof Chart!=='undefined' && Chart.getChart) ? Chart.getChart(CANVAS[id]) : null;
@@ -1239,6 +1252,113 @@ async function downloadAllStations(){
   try{ await snapNode(wrap,'Stations_'+SEG+'_'+dstamp()); }
   catch(err){ alert('Export failed: '+err.message); }
   finally{ document.body.removeChild(wrap); }
+}
+
+/* ---------- Riyadh B2C overall page ---------- */
+function riyadhScoped(fn){
+  const sS=SEG,sR=REGION,sU=SUBREGION;
+  SEG='B2C'; REGION='CR'; SUBREGION='RUH';
+  try{ return fn(); } finally{ SEG=sS; REGION=sR; SUBREGION=sU; }
+}
+function ruhNum(city){ const m=(city||'').match(/RUH\s*(\d+)/i); return m?+m[1]:99; }
+function renderRiyadh(){
+  const el=document.getElementById('riyadhSheet');
+  riyadhScoped(()=>{
+    const g=tgt();
+    const sr=segRows(), rows=scored();
+    if(!rows.length){
+      el.innerHTML='<div class="empty">'+(ROWS.length?'No Riyadh B2C rows in the loaded data.':'No data loaded. Use Paste data to import a Spanel export.')+'</div>';
+      destroy('ryPod'); destroy('ryVend'); return;
+    }
+    const ofd=rows.reduce((a,r)=>a+(r.ofd||0),0), pod=rows.reduce((a,r)=>a+(r.pod||0),0);
+    const wpod=ofd>0?pod/ofd*100:null;
+    const stns=stationAgg();
+    const onTarget=stns.filter(s=>s.podpct!==null&&s.podpct>=g.t).length;
+    const atRisk=rows.filter(r=>r.podpct!==null&&r.podpct<g.r).length;
+    const sfVals=rows.filter(r=>r.sf!==null).map(r=>r.sf);
+    const avgSF=sfVals.length?sfVals.reduce((a,b)=>a+b,0)/sfVals.length:null;
+    const withA=rows.filter(r=>r.assigned>0);
+    const c2bVals=withA.filter(r=>r.puppct!==null).map(r=>r.puppct);
+    const c2b=c2bVals.length?c2bVals.reduce((a,b)=>a+b,0)/c2bVals.length:null;
+    const delayed=rows.filter(r=>r.firstPodMin!==null && r.firstPodMin>DELAY_MIN).length;
+    const idle=idleRows().length;
+
+    const kpis=[
+      kpi('Riyadh couriers', sr.length,'', rows.length+' scored'+(idle?' &middot; '+idle+' idle':''),''),
+      kpi('Weighted POD %', fmtPct(wpod),'', 'target '+g.t+'%', clsFor(wpod,g)),
+      kpi('OFD &rarr; POD', ofd+' &rarr; '+pod,'', (ofd-pod)+' not delivered',''),
+      kpi('Locations on target', onTarget+' <small>/ '+stns.length+'</small>','', 'at or above '+g.t+'%', onTarget===stns.length?'ok':(onTarget>=stns.length/2?'warn':'risk')),
+      kpi('Couriers at risk', atRisk,'', 'below '+g.r+'% POD', atRisk===0?'ok':(atRisk<=5?'warn':'risk')),
+      kpi('C2B pickup', fmtPct(c2b),'', 'target '+T.b2c_c2b+'% &middot; '+withA.length+' assigned', c2b===null?'':(c2b>=T.b2c_c2b?'ok':(c2b>=T.b2c_c2b-10?'warn':'risk'))),
+      kpi('Avg success factor', fmtPct(avgSF),'', 'unweighted mean',''),
+      kpi('Delayed 1st POD', delayed,'', 'after '+fmtMins(DELAY_MIN), delayed===0?'ok':(delayed<=5?'warn':'risk'))
+    ];
+
+    // per-location table in natural RUH order
+    const locs=[...stns].sort((a,b)=>ruhNum(a.city)-ruhNum(b.city));
+    const locRows=locs.map(s=>{
+      const st=s.podpct===null?'idle':(s.podpct>=g.t?'ok':(s.podpct>=g.r?'warn':'risk'));
+      const stTxt=st==='ok'?'On target':(st==='warn'?'Below target':(st==='risk'?'At risk':'No volume'));
+      const avg=s.crr?(s.ofd/s.crr):0;
+      const c2bc=s.pupPct===null?'':(s.pupPct>=T.b2c_c2b?'pod-ok':'pod-risk');
+      return '<tr><td style="text-align:left;font-weight:600">'+s.city+'</td><td>'+s.crr+'</td><td>'+s.ofd+'</td><td>'+s.pod+'</td><td class="'+podCls(s.podpct)+'">'+fmtPct(s.podpct,1)+'</td><td>'+avg.toFixed(1)+'</td><td class="'+c2bc+'">'+fmtPct(s.pupPct,0)+'</td><td>'+fmtPct(s.sf,0)+'</td><td>'+(s.risk||'0')+'</td><td><span class="tag '+st+'">'+stTxt+'</span></td></tr>';
+    }).join('');
+    const totAvg=rows.length?ofd/rows.length:0;
+    const locTable='<table class="mini"><thead><tr><th style="text-align:left">Location</th><th>Crr</th><th>OFD</th><th>POD</th><th>POD%</th><th>Avg OFD</th><th>C2B%</th><th>SF</th><th>Risk</th><th>Status</th></tr></thead><tbody>'+locRows+
+      '<tr class="totrow"><td style="text-align:left">Riyadh total</td><td>'+rows.length+'</td><td>'+ofd+'</td><td>'+pod+'</td><td class="'+podCls(wpod)+'">'+fmtPct(wpod,1)+'</td><td>'+totAvg.toFixed(1)+'</td><td>'+fmtPct(c2b,0)+'</td><td>'+fmtPct(avgSF,0)+'</td><td>'+atRisk+'</td><td></td></tr></tbody></table>';
+
+    // vendor table across all of Riyadh
+    const vg={};
+    rows.forEach(r=>{ const v=r.isp||'—'; if(!vg[v])vg[v]={isp:v,crr:0,ofd:0,pod:0,sfSum:0,sfN:0,risk:0,asg:0,pend:0};
+      const o=vg[v]; o.crr++; o.ofd+=r.ofd||0; o.pod+=r.pod||0; if(r.sf!==null){o.sfSum+=r.sf;o.sfN++;}
+      if(r.podpct!==null&&r.podpct<g.r)o.risk++; if(r.assigned>0){o.asg+=r.assigned;o.pend+=(r.pendingPUP||0);} });
+    const vArr=vendorOrder(Object.values(vg).map(v=>{v.podpct=v.ofd>0?v.pod/v.ofd*100:null; return v;}));
+    const vendRows=vArr.map(v=>{
+      const avg=v.crr?v.ofd/v.crr:0;
+      const c2bv=v.asg>0?(v.asg-v.pend)/v.asg*100:null;
+      return '<tr'+((v.isp in VPRIORITY)?' class="vg-priority"':'')+'><td style="text-align:left;font-weight:600">'+shortV(v.isp)+'</td><td>'+v.crr+'</td><td>'+v.ofd+'</td><td>'+avg.toFixed(1)+'</td><td>'+v.pod+'</td><td class="'+podCls(v.podpct)+'">'+fmtPct(v.podpct,1)+'</td><td>'+fmtPct(c2bv,0)+'</td><td>'+(v.sfN?fmtPct(v.sfSum/v.sfN,0):'—')+'</td><td>'+(v.risk||'0')+'</td></tr>';
+    }).join('');
+    const vendTable='<table class="mini"><thead><tr><th style="text-align:left">Vendor</th><th>Crr</th><th>OFD</th><th>Avg OFD</th><th>POD</th><th>POD%</th><th>C2B%</th><th>SF</th><th>Risk</th></tr></thead><tbody>'+vendRows+'</tbody></table>';
+
+    el.innerHTML=
+      '<div class="kpis">'+kpis.join('')+'</div>'+
+      '<div class="grid2">'+
+        '<div class="card"><div class="hd"><h3>POD % by location</h3><span class="note">target '+g.t+'% &middot; risk below '+g.r+'%</span></div><div class="bd"><div class="chartbox"><canvas id="ryPodChart"></canvas></div></div></div>'+
+        '<div class="card"><div class="hd"><h3>Vendor weighted POD %</h3><span class="note">across all of Riyadh</span></div><div class="bd"><div class="chartbox"><canvas id="ryVendChart"></canvas></div></div></div>'+
+      '</div>'+
+      '<div class="card" style="margin-bottom:18px"><div class="hd"><h3>Performance by location</h3><span class="note">RUH 1&ndash;5 &middot; weighted POD %</span></div><div class="scroll">'+locTable+'</div></div>'+
+      '<div class="card" style="margin-bottom:18px"><div class="hd"><h3>Performance by vendor</h3><span class="note">priority vendors first</span></div><div class="scroll">'+vendTable+'</div></div>';
+
+    destroy('ryPod');
+    const cl=locs.map(s=>s.city), cv=locs.map(s=>s.podpct);
+    charts.ryPod=new Chart(document.getElementById('ryPodChart'),{
+      data:{labels:cl,datasets:[
+        {type:'bar',label:'POD %',data:cv,backgroundColor:locs.map(s=>s.podpct===null?'#cbd5e1':(s.podpct>=g.t?STC.ok:(s.podpct>=g.r?STC.warn:STC.risk))),borderRadius:5,maxBarThickness:52,order:2},
+        {type:'line',label:'Target',data:cl.map(()=>g.t),borderColor:STC.line,borderWidth:1.5,borderDash:[5,4],pointRadius:0,order:1}
+      ]},
+      options:baseOpts({yMax:110,yTitle:'POD %'})
+    });
+    destroy('ryVend');
+    const vv=vArr.filter(v=>v.ofd>0);
+    charts.ryVend=new Chart(document.getElementById('ryVendChart'),{
+      data:{labels:vv.map(v=>shortV(v.isp)),datasets:[
+        {type:'bar',label:'POD %',data:vv.map(v=>v.podpct),backgroundColor:vv.map(v=>v.podpct>=g.t?STC.ok:(v.podpct>=g.r?STC.warn:STC.risk)),borderRadius:5,maxBarThickness:46,order:2},
+        {type:'line',label:'Target',data:vv.map(()=>g.t),borderColor:STC.line,borderWidth:1.5,borderDash:[5,4],pointRadius:0,order:1}
+      ]},
+      options:baseOpts({yMax:110,yTitle:'POD %',rotate:true})
+    });
+  });
+}
+async function downloadRiyadh(){
+  if(!ROWS.length){ alert('No data to export. Paste or import a Spanel export first.'); return; }
+  const el=document.getElementById('riyadhSheet'); if(!el) return;
+  const hd=document.createElement('div');
+  hd.className='export-hd'; hd.style.marginBottom='16px';
+  hd.innerHTML='<h2>Riyadh B2C performance</h2><span>'+nowStamp()+'</span>';
+  el.insertBefore(hd, el.firstChild);
+  try{ await snap(el,'Riyadh_B2C_'+dstamp()); }
+  catch(err){ alert('Export failed: '+err.message); }
+  finally{ el.removeChild(hd); }
 }
 
 function renderStations(){
@@ -1897,6 +2017,7 @@ function updatePills(){
 function renderTab(){
   if(TAB==='summary') renderSummary();
   else if(TAB==='overview'){ renderKPIs(); renderCharts(); renderVendorHeatmap(); renderAvgOfdHeatmap(); renderOverviewStations(); }
+  else if(TAB==='riyadh') renderRiyadh();
   else if(TAB==='stations') renderStations();
   else if(TAB==='routes') renderRoutes();
   else if(TAB==='low') renderLow();
@@ -2030,6 +2151,7 @@ document.getElementById('dlLow').onclick=downloadLow;
 document.getElementById('dlRoutes').onclick=downloadRoutes;
 document.getElementById('routeExpandBtn').onclick=()=>{ routeExpandAll=!routeExpandAll; renderRoutes(); };
 document.getElementById('dlOverview').onclick=downloadOverview;
+document.getElementById('dlRiyadh').onclick=downloadRiyadh;
 document.getElementById('dlDelay').onclick=()=>snap(document.getElementById('delayTable'),'Delayed_first_POD_'+SEG+'_'+dstamp());
 document.getElementById('dlUtil').onclick=downloadUtil;
 document.getElementById('delayMin').addEventListener('input',e=>{ const v=parseInt(e.target.value); if(!isNaN(v)&&v>=0){ DELAY_MIN=v; renderDelayed(); updatePills(); } });
