@@ -609,14 +609,14 @@ const PREFIX_CITY = {
   BHX:'Bishah', BSH:'Bishah',
   ANX:'Namas', ANS:'Namas',
   // Central Region (CR)
-  MJX:'Majmaah', DWX:'Duwadimi', AKJ:'Kharj', ELX:'Buraydah', RUX:'Riyadh'
+  MJX:'Majmaah', DWX:'Duwadimi', AKJ:'Al Kharj', ELX:'Buraydah', RUX:'Riyadh'
 };
 // Prefixes that belong to SR; any other prefix is treated as CR.
 const SR_PREFIXES = new Set(['KMX','KMT','GIX','GIZ','EAX','EAM','MYX','MYL','WAX','WAE','BHX','BSH','ANX','ANS']);
 function regionOf(prefix){ return SR_PREFIXES.has(prefix) ? 'SR' : 'CR'; }
 const OFD_DEFAULT_VENDORS = ['SMSA','Mutairi PPH','Core Support PPH'];
 // Canonical city order per region (used for stable ordering; others appended alphabetically)
-const CITY_ORDER = ['Khamis Mushayt','Jazan','Najran','Muhayil','Wadi Dawasir','Bishah','Namas','RUH 1','RUH 2','RUH 3','RUH 4','RUH 5','Buraydah','Majmaah','Kharj','Duwadimi'];
+const CITY_ORDER = ['Khamis Mushayt','Jazan','Najran','Muhayil','Wadi Dawasir','Bishah','Namas','RUH 1','RUH 2','RUH 3','RUH 4','RUH 5','Buraydah','Majmaah','Al Kharj','Duwadimi'];
 function activeCities(){
   const set=new Set();
   ROWS.filter(r=>!r.excluded && inReg(r)).forEach(r=>{ if(r.city) set.add(r.city); });
@@ -683,11 +683,13 @@ function deriveRow(r){
   const region = regionOf(prefix);
   // Both regions use the SR rule: X in the prefix = B2C, else B2B.
   let seg = isX?'B2C':'B2B';
-  // Kharj (AKJ): only the listed route numbers are B2B; every other AKJ route is B2C.
+  // Al Kharj (AKJ): the listed route numbers and any ST (station) route are B2B; every other AKJ route is B2C.
   const KHARJ_B2B=[298,299,802];
   if(prefix==='AKJ'){
-    const num=parseInt((route.replace(/^\s*AKJ/i,'').match(/\d+/)||[])[0],10);
-    seg = KHARJ_B2B.includes(num) ? 'B2B' : 'B2C';
+    const rest=route.replace(/^\s*AKJ/i,'').trim();
+    const num=parseInt((rest.match(/\d+/)||[])[0],10);
+    const isST=/(^|\s)ST/i.test(rest);
+    seg = (isST || KHARJ_B2B.includes(num)) ? 'B2B' : 'B2C';
   }
   let city = PREFIX_CITY[prefix] || (prefix||'Unknown');
   const known = !!PREFIX_CITY[prefix];
