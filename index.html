@@ -317,6 +317,11 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
     <button data-region="SR"><small>South</small>SR</button>
     <button data-region="CR"><small>Central</small>CR</button>
   </div>
+  <div class="segswitch" id="subregionswitch" style="margin-left:8px">
+    <button data-sub="" class="on"><small>CR area</small>All</button>
+    <button data-sub="RUH"><small>Riyadh</small>RUH</button>
+    <button data-sub="CR Remotes"><small>Central</small>Remotes</button>
+  </div>
   <div class="spacer"></div>
   <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none"/>
   <button class="btn solid" id="pasteOpen">Paste data</button>
@@ -648,15 +653,15 @@ let T = {
 let ROWS=[];            // all derived courier rows
 let SEG='B2C';
 let REGION='';          // '' = all regions, 'SR', 'CR'
-// CR is B2C-only for now: CR B2B rows are excluded everywhere.
-function inReg(r){ if(r.region==='CR' && r.seg==='B2B') return false; return !REGION || r.region===REGION; }
+let SUBREGION='';       // CR sub-region: '' = all, 'RUH', 'CR Remotes'
+function inReg(r){
+  if(REGION && r.region!==REGION) return false;
+  if(SUBREGION && r.subregion!==SUBREGION) return false;
+  return true;
+}
 function syncSegForRegion(){
   const b2b=document.querySelector('#segswitch button[data-seg="B2B"]');
-  if(!b2b) return;
-  if(REGION==='CR'){
-    b2b.classList.add('seg-dis');
-    if(SEG==='B2B'){ SEG='B2C'; document.querySelectorAll('#segswitch button').forEach(x=>x.classList.toggle('on',x.dataset.seg==='B2C')); }
-  } else { b2b.classList.remove('seg-dis'); }
+  if(b2b) b2b.classList.remove('seg-dis');   // B2B is available in both regions now
 }
 let TAB='summary';
 let charts={};
@@ -676,8 +681,14 @@ function deriveRow(r){
   const prefix=tok.slice(0,3).toUpperCase();
   const isX = prefix.length>=3 && prefix[2]==='X';
   const region = regionOf(prefix);
-  // CR is B2C-only: every CR route is treated as B2C regardless of its code (e.g. AKJ Kharj).
-  const seg = region==='CR' ? 'B2C' : (isX?'B2C':'B2B');
+  // Both regions use the SR rule: X in the prefix = B2C, else B2B.
+  let seg = isX?'B2C':'B2B';
+  // Kharj (AKJ): only the listed route numbers are B2B; every other AKJ route is B2C.
+  const KHARJ_B2B=[298,299,802];
+  if(prefix==='AKJ'){
+    const num=parseInt((route.replace(/^\s*AKJ/i,'').match(/\d+/)||[])[0],10);
+    seg = KHARJ_B2B.includes(num) ? 'B2B' : 'B2C';
+  }
   let city = PREFIX_CITY[prefix] || (prefix||'Unknown');
   const known = !!PREFIX_CITY[prefix];
   // Riyadh (RUX) splits into RUH 1..5 by the first digit of the route number (RUX 231 -> RUH 2; a leading 0 is skipped)
@@ -687,6 +698,8 @@ function deriveRow(r){
     if(d==='0' && digits.length>1) d=digits[1];
     if(d) city='RUH '+d;
   }
+  // CR sub-region: Riyadh = RUH, the other CR cities = CR Remotes. SR rows have no sub-region.
+  const subregion = region==='CR' ? (prefix==='RUX' ? 'RUH' : 'CR Remotes') : '';
   const station = seg==='B2C' ? city+' LMX' : city+' St';
   const ofd=num(r.OFD), pod=num(r.POD);
   const conflict = ( (ofd===0||ofd===null) && pod!==null && pod>0 ) || (ofd!==null && pod!==null && pod>ofd);
@@ -694,7 +707,7 @@ function deriveRow(r){
   const emp=(r.Employee||'').toString();
   return {
     emp, isp:(r.ISP||'').toString().trim(), route,
-    prefix, seg, city, station, known, region,
+    prefix, seg, city, station, known, region, subregion,
     ofd, pod, assigned, pendingPUP:num(r.PendingPUP),
     podpct: pct(r.PODpct), puppct: pct(r.PUPpct), pinpct: pct(r.PINpct),
     sf: parseSF(r.SF), conflict,
@@ -1907,7 +1920,16 @@ document.getElementById('segswitch').addEventListener('click',e=>{
 document.getElementById('regionswitch').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b)return;
   REGION=b.dataset.region; document.querySelectorAll('#regionswitch button').forEach(x=>x.classList.toggle('on',x===b));
+  // sub-region only applies within CR; reset it when leaving CR
+  if(REGION!=='CR'){ SUBREGION=''; document.querySelectorAll('#subregionswitch button').forEach(x=>x.classList.toggle('on',x.dataset.sub==='')); }
   syncSegForRegion();
+  openStations={}; renderAll(true);
+});
+document.getElementById('subregionswitch').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  SUBREGION=b.dataset.sub; document.querySelectorAll('#subregionswitch button').forEach(x=>x.classList.toggle('on',x===b));
+  // picking a sub-region scopes to CR
+  if(SUBREGION){ REGION='CR'; document.querySelectorAll('#regionswitch button').forEach(x=>x.classList.toggle('on',x.dataset.region==='CR')); syncSegForRegion(); }
   openStations={}; renderAll(true);
 });
 document.getElementById('subnav').addEventListener('click',e=>{
