@@ -167,6 +167,14 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
 @media(max-width:820px){.stngrid{grid-template-columns:1fr}}
 .stncard{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;position:relative}
 .stn-cps-ref{position:absolute;top:5px;right:9px;font-size:10px;color:var(--muted);opacity:.5;font-variant-numeric:tabular-nums;z-index:2;pointer-events:none}
+.calc-lock{display:flex;justify-content:center;padding:40px 16px}
+.calc-lock-card{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:28px 26px;max-width:380px;width:100%;text-align:center}
+.calc-lock-card .lk{font-size:26px;line-height:1;margin-bottom:10px}
+.calc-lock-card h3{font-size:16px;margin:0 0 6px}
+.calc-lock-card p{font-size:12.5px;color:var(--muted);margin:0 0 16px;line-height:1.5}
+.calc-lock-row{display:flex;gap:8px}
+.calc-lock-row input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+.calc-lock-err{color:var(--risk);font-size:12px;margin-top:10px;min-height:14px;font-weight:600}
 .stncard.st-ok{border-top:3px solid var(--ok)}.stncard.st-warn{border-top:3px solid var(--warn)}.stncard.st-risk{border-top:3px solid var(--risk)}.stncard.st-idle{border-top:3px solid var(--idle)}
 .stncard-hd{padding:14px 16px;display:flex;align-items:flex-start;gap:10px}
 .stncard-name{font-size:15.5px;font-weight:680;letter-spacing:-.01em}
@@ -552,12 +560,26 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
   <div class="view" data-view="calc">
     <div class="stntoolbar">
       <div><h3>Cost per shipment</h3><div class="desc">Daily CPS by vendor class, station and region.</div></div>
-      <div class="filterbar" style="margin-left:auto">
+      <div class="filterbar" style="margin-left:auto" id="calcTools">
         <label class="eyebrow">Segment</label>
         <select id="calc_seg"><option>All</option><option>B2C</option><option>B2B</option></select>
         <button class="pngbtn mini-btn no-snap" id="dlCalc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
+        <button class="pngbtn mini-btn no-snap" id="calcLockBtn">Lock</button>
       </div>
     </div>
+    <div class="calc-lock" id="calcLock">
+      <div class="calc-lock-card">
+        <div class="lk">&#128274;</div>
+        <h3>Cost figures locked</h3>
+        <p>CPS and cost rates are confidential. Enter the password to view and edit them.</p>
+        <div class="calc-lock-row">
+          <input type="password" id="calcPw" placeholder="Password" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button class="btn solid" id="calcUnlock">Unlock</button>
+        </div>
+        <div class="calc-lock-err" id="calcPwErr"></div>
+      </div>
+    </div>
+    <div id="calcBody" style="display:none">
     <div class="hint" id="calcHint"><div>&#9888;</div><div>Daily CPS. Vendors are classed <b>SMSA</b> (direct), <b>PPH</b> (name contains PPH) and <b>PPP</b> (all other outsourced). SMSA and PPH are fixed monthly per head (default 8,500); their monthly cost is divided by the working days below to get the daily cost. PPP is per shipment. B2C incentive is paid per delivered shipment. Heads and POD prefill from the loaded daily data for the selected segment; edit any field.</div></div>
     <div class="tform">
       <div class="tset">
@@ -589,6 +611,7 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
     <div class="tset" style="margin-top:16px">
       <div class="frow" style="border:0;padding-top:0"><label>Total shipments for CPS</label><input type="number" class="num" id="calc_totShip"></div>
       <div id="calcResult"></div>
+    </div>
     </div>
   </div>
 </div>
@@ -656,6 +679,8 @@ let EXCLUDED = new Set();
 let DISPATCH = {};                 // station label -> "HH:MM"
 let PPP_RATES = {};                // PPP vendor -> rate (default 7)
 let DELAY_MIN = 120;               // first-POD delay threshold in minutes (2h)
+const CALC_PW = 'cps2026';         // password to view CPS / cost figures — change this to set your own
+let CALC_UNLOCKED = false;         // true once the correct password is entered (resets on reload)
 let courierOpen = {};              // station label -> bool (courier list expanded)
 let STN_VENDOR = '';               // stations tab vendor filter
 let courVendCollapsed = new Set();  // key station||vendor -> collapsed
@@ -723,7 +748,7 @@ function deriveRow(r){
   if(region==='ER'){
     seg='B2C';
     const rest=route.slice(prefix.length).trim();
-    if(prefix==='DMX' && /(^|\s)KF(\s|\d|$)/i.test(rest)) city='Khafji';
+    if(prefix==='DMX' && /(^|\s)KFJ(\s|\d|$)/i.test(rest)) city='Khafji';
     else if(prefix==='DMX' && /(^|\s)BQQ(\s|\d|$)/i.test(rest)) city='Abqaiq';
     else if(/(^|\s)ST(\s|\d|$)/i.test(rest)){ roofScan=true; city=ROOF_SCANS; }
   }
@@ -1175,7 +1200,7 @@ function summaryCardHTML(s,g){
   const ordVend=vendorOrder(s.vendors); const vN=ordVend.length;
   const c2bCls = s.pupPct===null?'':(s.pupPct>=T.b2c_c2b?'c2b-ok':'c2b-bad');
   const isB2C = SEG==='B2C';
-  return '<div class="stncard st-'+st+'">'+'<div class="stn-cps-ref">'+(s.pod>0?Math.round(stationCost(s.couriers)/s.pod):'')+'</div>'+
+  return '<div class="stncard st-'+st+'">'+cpsCorner(s)+
     '<div class="stncard-hd">'+
       '<div><div class="stncard-name">'+s.station+'</div><div class="stncard-sub">'+s.crr+' couriers &middot; '+vN+' vendor'+(vN>1?'s':'')+' &middot; '+stTxt+'</div></div>'+
       '<div class="stncard-pod '+st+'"><span>POD</span><b>'+fmtPct(s.podpct,1)+'</b></div>'+
@@ -1424,7 +1449,7 @@ function renderStations(){
       : '<tr><th>Route</th><th>Emp</th><th>OFD</th><th>POD</th><th>POD%</th><th>SF</th></tr>';
     const open = !!courierOpen[s.station];
     const c2bCls = s.pupPct===null?'':(s.pupPct>=T.b2c_c2b?'c2b-ok':'c2b-bad');
-    return '<div class="stncard st-'+st+(open?' open':'')+'" id="card_'+safeId(s.station)+'">'+'<div class="stn-cps-ref">'+(s.pod>0?Math.round(stationCost(s.couriers)/s.pod):'')+'</div>'+
+    return '<div class="stncard st-'+st+(open?' open':'')+'" id="card_'+safeId(s.station)+'">'+cpsCorner(s)+
       '<div class="stncard-hd">'+
         '<div><div class="stncard-name">'+s.station+'</div><div class="stncard-sub">'+s.crr+' couriers &middot; '+vN+' vendor'+(vN>1?'s':'')+' &middot; '+stTxt+'</div></div>'+
         '<div class="stncard-pod '+st+'"><span>POD</span><b>'+fmtPct(s.podpct,1)+'</b></div>'+
@@ -1812,6 +1837,8 @@ function stationCost(couriers){
   couriers.forEach(r=>{ const c=costClass(r.isp); if(c==='SMSA')smsa.add(r.emp); else if(c==='PPH')pph.add(r.emp); else pppC+=pppRate(r.isp)*(r.pod||0); inc+=courierB2CInc(r,thr,r1,r2,r3); });
   return smsa.size*smsaRate/days + smsa.size*fuel + pph.size*pphRate/days + pppC + inc;
 }
+// discreet CPS in the station-card corner — only shown while the Calc tab is unlocked
+function cpsCorner(s){ return (CALC_UNLOCKED && s.pod>0) ? '<div class="stn-cps-ref">'+Math.round(stationCost(s.couriers)/s.pod)+'</div>' : ''; }
 // per-vendor PPP rates. User override wins; else vendor default (6.5 for the named vendors), else 7.
 function pppDefault(v){ const nm=(v||'').toLowerCase(); return /rapid trend|mutairi|ags|ali abdulla|core support/.test(nm) ? 6.5 : 7; }
 function pppRate(v){ const r=PPP_RATES[v]; if(r!==undefined && r!==''){ const n=parseFloat(r); if(!isNaN(n)) return n; } return pppDefault(v); }
@@ -1849,7 +1876,21 @@ function applyCalcBase(seg){
   put('calc_totShip',b.totPOD);
   renderPppList();
 }
+function applyCalcLockUI(){
+  const lock=document.getElementById('calcLock'), body=document.getElementById('calcBody'), tools=document.getElementById('calcTools');
+  if(lock) lock.style.display=CALC_UNLOCKED?'none':'';
+  if(body) body.style.display=CALC_UNLOCKED?'':'none';
+  if(tools) tools.style.display=CALC_UNLOCKED?'':'none';
+}
+function tryUnlockCalc(){
+  const inp=document.getElementById('calcPw'), err=document.getElementById('calcPwErr');
+  if((inp.value||'')===CALC_PW){ CALC_UNLOCKED=true; inp.value=''; if(err)err.textContent=''; renderCalc(); if(typeof renderTab==='function'&&TAB==='stations') renderStations(); }
+  else { if(err)err.textContent='Wrong password.'; inp.select(); }
+}
+function lockCalc(){ CALC_UNLOCKED=false; applyCalcLockUI(); if(TAB==='stations') renderStations(); }
 function renderCalc(){
+  applyCalcLockUI();
+  if(!CALC_UNLOCKED) return;
   const setRate=(id,v)=>{ const e=document.getElementById(id); if(e && e.value==='') e.value=v; };
   setRate('calc_smsaRate',8500); setRate('calc_pphRate',8500);
   setRate('calc_days',26); setRate('calc_fuel',35);
@@ -1937,6 +1978,9 @@ function bindCalc(){
   const segEl=document.getElementById('calc_seg');
   if(segEl) segEl.addEventListener('change',()=>{ applyCalcBase(calcSeg()); calcResult(); });
   const dl=document.getElementById('dlCalc'); if(dl) dl.onclick=downloadCalc;
+  const un=document.getElementById('calcUnlock'); if(un) un.onclick=tryUnlockCalc;
+  const pw=document.getElementById('calcPw'); if(pw) pw.addEventListener('keydown',e=>{ if(e.key==='Enter') tryUnlockCalc(); });
+  const lk=document.getElementById('calcLockBtn'); if(lk) lk.onclick=lockCalc;
 }
 async function downloadCalc(){
   if(!ROWS.length){ alert('No data to export. Paste or import a Spanel export first.'); return; }
@@ -2233,7 +2277,7 @@ document.getElementById('sumDl').onclick=()=>snap(document.getElementById('sumSh
     sh.style.display=''; sh.onclick=()=>shareImage(document.getElementById('sumSheet'),'Operations_Summary_'+dstamp(), summaryText(false));
   }
 })();
-loadRows(SEED); bindTargets(); bindCalc(); renderExclusions(); renderAll(true);
+loadRows(SEED); bindTargets(); bindCalc(); applyCalcLockUI(); renderExclusions(); renderAll(true);
 </script>
 </body>
 </html>
