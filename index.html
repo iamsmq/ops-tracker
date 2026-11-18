@@ -657,7 +657,7 @@ const ROOF_SCANS = 'Under the Roof Scans';
 function regionOf(prefix){ return SR_PREFIXES.has(prefix) ? 'SR' : (ER_PREFIXES.has(prefix) ? 'ER' : 'CR'); }
 const OFD_DEFAULT_VENDORS = ['SMSA','Mutairi PPH','Core Support PPH'];
 // Canonical city order per region (used for stable ordering; others appended alphabetically)
-const CITY_ORDER = ['Khamis Mushayt','Jazan','Najran','Muhayil','Wadi Dawasir','Bishah','Namas','RUH 1','RUH 2','RUH 3','RUH 4','RUH 5','Buraydah','Majmaah','Al Kharj','Duwadimi','Dammam','Khafji','Abqaiq','Hofuf','Jubail','Hafr Al Baten',ROOF_SCANS];
+const CITY_ORDER = ['Khamis Mushayt','Jazan','Najran','Muhayil','Wadi Dawasir','Bishah','Namas','RUH 1','RUH 2','RUH 3','RUH 4','RUH 5','Buraydah','Majmaah','Al Kharj','Duwadimi','Dammam','Ras Tanourah','Khafji','Abqaiq','Hofuf','Jubail','Hafr Al Baten',ROOF_SCANS];
 function activeCities(){
   const set=new Set();
   ROWS.filter(r=>!r.excluded && inReg(r)).forEach(r=>{ if(r.city) set.add(r.city); });
@@ -743,7 +743,8 @@ function deriveRow(r){
     if(d==='0' && digits.length>1) d=digits[1];
     if(d) city='RUH '+d;
   }
-  // Eastern Region (ER): B2C only. DMX KF -> Khafji, DMX BQQ -> Abqaiq; ST routes pool into "Under the Roof Scans"; rest keep their city.
+  // Eastern Region (ER): B2C only. DMX KFJ -> Khafji, DMX BQQ -> Abqaiq; ST routes pool into "Under the Roof Scans".
+  // Other DMX routes split into zones by the first 2 digits of the route number (DMX 1105 -> Zone 11); 41 -> Ras Tanourah.
   let roofScan=false;
   if(region==='ER'){
     seg='B2C';
@@ -751,6 +752,10 @@ function deriveRow(r){
     if(prefix==='DMX' && /(^|\s)KFJ(\s|\d|$)/i.test(rest)) city='Khafji';
     else if(prefix==='DMX' && /(^|\s)BQQ(\s|\d|$)/i.test(rest)) city='Abqaiq';
     else if(/(^|\s)ST(\s|\d|$)/i.test(rest)){ roofScan=true; city=ROOF_SCANS; }
+    else if(prefix==='DMX'){
+      const d=rest.replace(/\D/g,'');
+      if(d.length>=2){ const z=d.slice(0,2); city = z==='41' ? 'Ras Tanourah' : 'Zone '+z; }
+    }
   }
   // CR sub-region: Riyadh = RUH, the other CR cities = CR Remotes. SR/ER rows have no sub-region.
   const subregion = region==='CR' ? (prefix==='RUX' ? 'RUH' : 'CR Remotes') : '';
