@@ -510,10 +510,15 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
   <!-- LOW PERFORMERS -->
   <div class="view" data-view="low">
     <div class="stntoolbar">
-      <div><h3 id="lowTitle"></h3><div class="desc">Low performers grouped into a card per station.</div></div>
-      <div class="filterbar" style="margin-left:auto">
+      <div><h3 id="lowTitle"></h3><div class="desc">Low performers grouped into a card per station or per vendor.</div></div>
+      <div class="filterbar" style="margin-left:auto;flex-wrap:wrap;gap:8px">
+        <label class="eyebrow">Group by</label>
+        <div class="segswitch" id="lowGroupSw">
+          <button data-gb="station" class="on">Station</button>
+          <button data-gb="vendor">Vendor</button>
+        </div>
         <label class="eyebrow">Station</label><select id="lowStn"></select>
-        <label class="eyebrow">Vendor</label><select id="lowVend"></select>
+        <label class="eyebrow">Vendor</label><div class="msel" id="lowVendMs"></div>
         <button class="pngbtn mini-btn no-snap" id="dlLow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
       </div>
     </div>
@@ -527,7 +532,7 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
       <div><h3>Below OFD target</h3><div class="desc" id="utilDesc"></div></div>
       <div class="filterbar" style="margin-left:auto">
         <label class="eyebrow">Station</label><select id="utilStn"></select>
-        <label class="eyebrow">Vendor</label><select id="utilVend"></select>
+        <label class="eyebrow">Vendor</label><div class="msel" id="utilVendMs"></div>
         <button class="pngbtn mini-btn no-snap" id="dlUtil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
       </div>
     </div>
@@ -719,12 +724,13 @@ function mselLabelText(id){ const s=mselSet(id); return s.size===0?'All vendors'
 function updateMselLabel(id){ const h=document.getElementById(id); if(!h)return; const l=h.querySelector('.lbl'); if(l) l.textContent=mselLabelText(id); }
 function closeAllMsel(except){ document.querySelectorAll('.msel.open').forEach(m=>{ if(m!==except) m.classList.remove('open'); }); }
 document.addEventListener('click',()=>closeAllMsel(null));
-function buildVMsel(id,onchange){
+function vlistOrder(names){ return vendorOrder([...new Set(names)].map(isp=>({isp}))).map(v=>v.isp); }
+function buildVMsel(id,onchange,vendsOverride){
   const host=document.getElementById(id); if(!host) return;
   if(!VMSEL[id]) VMSEL[id]={set:new Set()};
   VMSEL[id].onchange=onchange;
   const sel=VMSEL[id].set;
-  const vends=orderedVendors();
+  const vends=vendsOverride||orderedVendors();
   [...sel].forEach(v=>{ if(!vends.includes(v)) sel.delete(v); });  // prune gone vendors
   const atAttr=v=>String(v).replace(/"/g,'&quot;');
   const rows=['<label class="msel-all"><input type="checkbox" data-all="1"'+(sel.size===0?' checked':'')+'> All vendors</label>']
@@ -1803,44 +1809,56 @@ function emailSummary(){
 }
 
 /* ---------- low performers ---------- */
+let lowGroupBy='station';   // 'station' | 'vendor'
 function lowRows(){
   const g=tgt();
   return scored().filter(r=>r.podpct!==null&&r.podpct<g.t)
     .sort((a,b)=>a.podpct-b.podpct);
 }
-function lowCardHTML(station,rows,g){
+function lowCardHTML(title,rows,g,byVendor){
   const worst=rows[0].podpct;
+  // when grouped by vendor the second column is Station; otherwise it is Vendor
+  const secCol=byVendor?'Station':'Vendor';
   const body=rows.map(r=>{
     const rc=r.podpct===null?'':(r.podpct>=g.t?'pod-ok':(r.podpct>=g.r?'pod-warn':'pod-risk'));
-    return '<tr><td>'+r.emp+'</td><td>'+r.route+'</td><td class="vend-cell">'+shortV(r.isp)+'</td>'+
+    const sec=byVendor?r.station:shortV(r.isp);
+    return '<tr><td>'+r.emp+'</td><td>'+r.route+'</td><td class="vend-cell">'+sec+'</td>'+
       '<td>'+(r.ofd??'—')+'</td><td>'+(r.pod??'—')+'</td><td class="'+rc+'">'+fmtPct(r.podpct,0)+'</td>'+
       '<td>'+fmtPct(r.pinpct,0)+'</td><td>'+fmtPct(r.sf,0)+'</td></tr>';
   }).join('');
-  return '<div class="stncard st-risk" id="lowcard_'+safeId(station)+'">'+
-    '<div class="stncard-hd"><div><div class="stncard-name">'+station+'</div><div class="stncard-sub">'+rows.length+' below target</div></div>'+
+  const sub=byVendor?(rows.length+' below target across '+new Set(rows.map(r=>r.station)).size+' station'+(new Set(rows.map(r=>r.station)).size>1?'s':'')):(rows.length+' below target');
+  return '<div class="stncard st-risk" id="lowcard_'+safeId(title)+'">'+
+    '<div class="stncard-hd"><div><div class="stncard-name">'+title+'</div><div class="stncard-sub">'+sub+'</div></div>'+
     '<div class="stncard-pod risk"><span>Worst</span><b>'+fmtPct(worst,0)+'</b></div></div>'+
-    '<div class="stnsec"><div class="scroll"><table class="mini"><thead><tr><th>Emp</th><th>Route</th><th>Vendor</th><th>OFD</th><th>POD</th><th>POD%</th><th>PIN</th><th>SF</th></tr></thead><tbody>'+body+'</tbody></table></div></div></div>';
+    '<div class="stnsec"><div class="scroll"><table class="mini"><thead><tr><th>Emp</th><th>Route</th><th>'+secCol+'</th><th>OFD</th><th>POD</th><th>POD%</th><th>PIN</th><th>SF</th></tr></thead><tbody>'+body+'</tbody></table></div></div></div>';
 }
 function lowGroups(){
-  const g=tgt();
   let data=lowRows();
-  const stnSel=document.getElementById('lowStn'), vSel=document.getElementById('lowVend');
+  const stnSel=document.getElementById('lowStn');
+  const sel=mselSet('lowVendMs');
   if(stnSel && stnSel.value && stnSel.value!=='All stations') data=data.filter(r=>r.station===stnSel.value);
-  if(vSel && vSel.value && vSel.value!=='All vendors') data=data.filter(r=>r.isp===vSel.value);
+  if(sel.size) data=data.filter(r=>sel.has(r.isp));
+  const byVendor=lowGroupBy==='vendor';
   const groups={};
-  data.forEach(r=>{ (groups[r.station]=groups[r.station]||[]).push(r); });
-  return Object.entries(groups).map(([station,rows])=>({station,rows:rows.sort((a,b)=>a.podpct-b.podpct)}))
-    .sort((a,b)=> b.rows.length-a.rows.length || a.rows[0].podpct-b.rows[0].podpct);
+  data.forEach(r=>{ const k=byVendor?r.isp:r.station; (groups[k]=groups[k]||[]).push(r); });
+  let arr=Object.entries(groups).map(([key,rows])=>({key,rows:rows.sort((a,b)=>a.podpct-b.podpct),byVendor}));
+  if(byVendor){ // priority vendors first, then by count/worst
+    arr.sort((a,b)=> (vpRank(a.key)-vpRank(b.key)) || (b.rows.length-a.rows.length) || (a.rows[0].podpct-b.rows[0].podpct));
+  } else {
+    arr.sort((a,b)=> (b.rows.length-a.rows.length) || (a.rows[0].podpct-b.rows[0].podpct));
+  }
+  return arr;
 }
 function renderLow(){
   document.getElementById('lowTitle').textContent=(SEG==='B2C'?'B2C':'B2B')+' couriers below '+tgt().t+'% POD target';
-  const stnSel=document.getElementById('lowStn'), vSel=document.getElementById('lowVend');
+  const stnSel=document.getElementById('lowStn');
   fillOnce(stnSel, ['All stations',...new Set(lowRows().map(r=>r.station))]);
-  fillOnce(vSel, ['All vendors',...new Set(lowRows().map(r=>r.isp))]);
+  buildVMsel('lowVendMs',renderLow, vlistOrder(lowRows().map(r=>r.isp)));
+  document.querySelectorAll('#lowGroupSw button').forEach(b=>b.classList.toggle('on',(b.dataset.gb||'')===lowGroupBy));
   const g=tgt(); const grid=document.getElementById('lowGrid');
   const groups=lowGroups();
   if(!groups.length){ grid.innerHTML='<div class="empty">No couriers below the '+g.t+'% target with these filters. Good.</div>'; return; }
-  grid.innerHTML=groups.map(gp=>lowCardHTML(gp.station,gp.rows,g)).join('');
+  grid.innerHTML=groups.map(gp=>lowCardHTML(gp.byVendor?shortV(gp.key):gp.key,gp.rows,g,gp.byVendor)).join('');
 }
 async function downloadLow(){
   const g=tgt(); const groups=lowGroups();
@@ -1852,8 +1870,9 @@ async function downloadLow(){
   const wrap=document.createElement('div');
   wrap.className='export-sheet';
   wrap.style.cssText='position:fixed;left:-20000px;top:0;width:'+width+'px;background:#fff;padding:'+pad+'px';
-  wrap.innerHTML='<div class="export-hd"><h2>'+(SEG==='B2C'?'B2C':'B2B')+' low performers below '+g.t+'% POD</h2><span>'+nowStamp()+'</span></div>'+
-    '<div class="export-grid" style="grid-template-columns:repeat('+cols+',1fr)">'+groups.map(gp=>lowCardHTML(gp.station,gp.rows,g)).join('')+'</div>';
+  const vlab=mselSet('lowVendMs').size?mselLabelText('lowVendMs'):'';
+  wrap.innerHTML='<div class="export-hd"><h2>'+(SEG==='B2C'?'B2C':'B2B')+' low performers below '+g.t+'% POD'+(lowGroupBy==='vendor'?' &middot; by vendor':'')+(vlab?' &middot; '+vlab:'')+'</h2><span>'+nowStamp()+'</span></div>'+
+    '<div class="export-grid" style="grid-template-columns:repeat('+cols+',1fr)">'+groups.map(gp=>lowCardHTML(gp.byVendor?shortV(gp.key):gp.key,gp.rows,g,gp.byVendor)).join('')+'</div>';
   document.body.appendChild(wrap); void wrap.offsetHeight;
   try{ wrap.querySelectorAll('.scroll').forEach(s=>s.style.overflow='visible'); await snapNode(wrap,'Low_performers_'+SEG+'_'+dstamp()); }
   catch(err){ alert('Export failed: '+err.message); }
@@ -1882,9 +1901,10 @@ function utilCardHTML(station,rows){
 }
 function utilGroups(){
   let data=utilRows();
-  const stnSel=document.getElementById('utilStn'), vSel=document.getElementById('utilVend');
+  const stnSel=document.getElementById('utilStn');
+  const sel=mselSet('utilVendMs');
   if(stnSel && stnSel.value && stnSel.value!=='All stations') data=data.filter(r=>r.station===stnSel.value);
-  if(vSel && vSel.value && vSel.value!=='All vendors') data=data.filter(r=>r.isp===vSel.value);
+  if(sel.size) data=data.filter(r=>sel.has(r.isp));
   const groups={};
   data.forEach(r=>{ (groups[r.station]=groups[r.station]||[]).push(r); });
   return Object.entries(groups).map(([station,rows])=>({station,rows:rows.sort((a,b)=>a.ofd-b.ofd)}))
@@ -1902,9 +1922,9 @@ function renderUtil(){
   const vend=enabled.length? enabled.map(v=>shortV(v)+' ('+T.ofd_targets[v]+')').join(', ') : 'none';
   document.getElementById('utilHint').innerHTML='<div>&#9888;</div><div>OFD targets apply to <b>'+vend+'</b> on B2C. Vendors without a target set are never flagged. Adjust the vendor list under Targets.</div>';
   document.getElementById('utilDesc').textContent='Couriers below their vendor OFD target, grouped by station.';
-  const stnSel=document.getElementById('utilStn'), vSel=document.getElementById('utilVend');
+  const stnSel=document.getElementById('utilStn');
   fillSel(stnSel, ['All stations',...new Set(utilRows().map(r=>r.station))], renderUtil);
-  fillSel(vSel, ['All vendors',...new Set(utilRows().map(r=>r.isp))], renderUtil);
+  buildVMsel('utilVendMs',renderUtil, vlistOrder(utilRows().map(r=>r.isp)));
   const groups=utilGroups();
   if(!groups.length){ grid.innerHTML='<div class="empty">No couriers below their vendor OFD target with these filters.</div>'; return; }
   grid.innerHTML=groups.map(gp=>utilCardHTML(gp.station,gp.rows)).join('');
@@ -1919,7 +1939,8 @@ async function downloadUtil(){
   const wrap=document.createElement('div');
   wrap.className='export-sheet';
   wrap.style.cssText='position:fixed;left:-20000px;top:0;width:'+width+'px;background:#fff;padding:'+pad+'px';
-  wrap.innerHTML='<div class="export-hd"><h2>B2C couriers below OFD target</h2><span>'+nowStamp()+'</span></div>'+
+  const vlab=mselSet('utilVendMs').size?mselLabelText('utilVendMs'):'';
+  wrap.innerHTML='<div class="export-hd"><h2>B2C couriers below OFD target'+(vlab?' &middot; '+vlab:'')+'</h2><span>'+nowStamp()+'</span></div>'+
     '<div class="export-grid" style="grid-template-columns:repeat('+cols+',1fr)">'+groups.map(gp=>utilCardHTML(gp.station,gp.rows)).join('')+'</div>';
   document.body.appendChild(wrap); void wrap.offsetHeight;
   try{ wrap.querySelectorAll('.scroll').forEach(s=>s.style.overflow='visible'); await snapNode(wrap,'Utilization_'+SEG+'_'+dstamp()); }
@@ -2253,7 +2274,7 @@ function renderTab(){
   else if(TAB==='calc') renderCalc();
 }
 function renderAll(resetFilters){
-  if(resetFilters){ ['lowStn','lowVend','delayStn','utilStn','utilVend','routeStn'].forEach(id=>{const s=document.getElementById(id); if(s) s.dataset.filled='';}); Object.values(VMSEL).forEach(m=>m.set.clear()); courVendCollapsed.clear(); routeOpen.clear(); routeExpandAll=false; routeStatus=''; routeSearch=''; routeSortKey='podpct'; routeSortDir=1; }
+  if(resetFilters){ ['lowStn','delayStn','utilStn','routeStn'].forEach(id=>{const s=document.getElementById(id); if(s) s.dataset.filled='';}); Object.values(VMSEL).forEach(m=>m.set.clear()); courVendCollapsed.clear(); routeOpen.clear(); routeExpandAll=false; routeStatus=''; routeSearch=''; routeSortKey='podpct'; routeSortDir=1; lowGroupBy='station'; }
   updatePills(); renderTab();
   const total=ROWS.length, exc=ROWS.filter(r=>r.excluded).length;
   document.getElementById('meta').innerHTML='<span class="num">'+total+'</span> couriers &middot; <span class="num">'+ROWS.filter(r=>r.seg==='B2C'&&!r.excluded).length+'</span> B2C / <span class="num">'+ROWS.filter(r=>r.seg==='B2B'&&!r.excluded).length+'</span> B2B'+(exc?' &middot; <span class="num">'+exc+'</span> excluded':'');
@@ -2380,6 +2401,8 @@ document.getElementById('routeExpandBtn').onclick=()=>{ routeExpandAll=!routeExp
   if(si) si.addEventListener('input',()=>{ routeSearch=si.value; renderRoutes(); });
   const sw=document.getElementById('routeStatusSw');
   if(sw) sw.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; routeStatus=b.dataset.st||''; renderRoutes(); });
+  const gb=document.getElementById('lowGroupSw');
+  if(gb) gb.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; lowGroupBy=b.dataset.gb||'station'; renderLow(); });
 })();
 document.getElementById('dlOverview').onclick=downloadOverview;
 document.getElementById('dlRiyadh').onclick=downloadRiyadh;
