@@ -112,6 +112,32 @@ tbody tr:hover{background:#f8fafb}
 .tag.risk{background:var(--risk-bg);color:var(--risk)} .tag.idle{background:var(--idle-bg);color:var(--idle)}
 .pod-ok{color:var(--ok);font-weight:640}.pod-warn{color:var(--warn);font-weight:640}.pod-risk{color:var(--risk);font-weight:700}
 .mini tr.totrow td{border-top:2px solid var(--line);background:var(--idle-bg);font-weight:700}
+/* checkbox multi-select */
+.msel{position:relative;display:inline-block}
+.msel-btn{display:inline-flex;align-items:center;gap:8px;justify-content:space-between;min-width:140px;padding:7px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:13px;color:var(--ink);cursor:pointer}
+.msel-btn .cv{color:var(--muted);font-size:10px}
+.msel-panel{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;min-width:210px;max-height:340px;overflow:auto}
+.msel.open .msel-panel{display:block}
+.msel-panel label{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap}
+.msel-panel label:hover{background:var(--idle-bg)}
+.msel-panel input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+.msel-panel .msel-all{border-bottom:1px solid var(--line);margin-bottom:4px;font-weight:700}
+/* route table */
+.rtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.rtbl thead th{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);background:var(--panel);padding:9px 10px;text-align:right;position:sticky;top:0;cursor:pointer;white-space:nowrap}
+.rtbl thead th.l,.rtbl tbody td.l{text-align:left}
+.rtbl thead th .ar{opacity:.5;font-size:9px;margin-left:3px}
+.rtbl tbody td{padding:8px 10px;text-align:right;border-bottom:1px solid #eef1f4;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rtbl tbody tr.rt-main{cursor:default}
+.rtbl tbody tr.rt-main.expandable{cursor:pointer}
+.rtbl tbody tr.rt-main.expandable:hover td{background:var(--idle-bg)}
+.rtbl tbody tr.rt-sub td{background:#fafcfd;color:var(--muted);font-size:11.5px;padding:5px 10px}
+.rtbl tbody tr.rt-subhd td{background:#f3f6f9;color:var(--muted);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;padding:4px 10px}
+.rtbl .rt-caret{display:inline-block;width:0;height:0;border-left:5px solid var(--muted);border-top:4px solid transparent;border-bottom:4px solid transparent;margin-right:7px;transition:transform .15s;vertical-align:middle}
+.rtbl .rt-caret.open{transform:rotate(90deg)}
+.rtbl tr.rt-vpri td.l:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.route-search{min-width:150px}
+#routeStatusSw button{padding:6px 10px}
 
 .tablecard{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}
 .tablecard .hd{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -451,7 +477,7 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
     <div class="stntoolbar">
       <div><h3 id="stnTblTitle"></h3><div class="desc">Each station is its own container with its couriers. Conflict and idle rows are excluded from the figures.</div></div>
       <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
-        <label class="eyebrow">Vendor</label><select id="stnVend"></select>
+        <label class="eyebrow">Vendor</label><div class="msel" id="stnVendMs"></div>
         <button class="pngbtn" id="dlAllStations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Download all stations</button>
       </div>
     </div>
@@ -461,14 +487,24 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
   <!-- ROUTES -->
   <div class="view" data-view="routes">
     <div class="stntoolbar">
-      <div><h3 id="routeTitle"></h3><div class="desc">Each station broken down by route, worst POD % first.</div></div>
-      <div class="filterbar" style="margin-left:auto">
-        <label class="eyebrow">Vendor</label><select id="routeVend"></select>
+      <div><h3 id="routeTitle"></h3><div class="desc">Every route across the region in one table, worst POD % first. Tap a multi-courier route to open its couriers.</div></div>
+      <div class="filterbar" style="margin-left:auto;flex-wrap:wrap;gap:8px">
+        <input type="search" id="routeSearch" class="route-search" placeholder="Find route…" autocomplete="off">
+        <label class="eyebrow">Station</label><select id="routeStn"></select>
+        <label class="eyebrow">Vendor</label><div class="msel" id="routeVendMs"></div>
+        <div class="segswitch" id="routeStatusSw">
+          <button data-st="" class="on">All</button>
+          <button data-st="risk">At risk</button>
+          <button data-st="warn">Below</button>
+          <button data-st="ok">On target</button>
+        </div>
         <button class="pngbtn mini-btn no-snap" id="routeExpandBtn">Expand all</button>
         <button class="pngbtn mini-btn no-snap" id="dlRoutes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Image</button>
       </div>
     </div>
-    <div class="stngrid" id="routeGrid"></div>
+    <div class="kpis" id="routeKpis" style="margin-bottom:16px"></div>
+    <div class="card" id="routeChartCard" style="margin-bottom:16px"><div class="hd"><h3>Lowest POD % routes</h3><span class="note">worst 15 in current scope</span></div><div class="bd"><div class="chartbox" style="height:380px"><canvas id="routePodChart"></canvas></div></div></div>
+    <div class="card"><div class="hd"><h3>All routes</h3><span class="note" id="routeCount"></span></div><div class="scroll" id="routeTableWrap"></div></div>
   </div>
 
   <!-- LOW PERFORMERS -->
@@ -675,6 +711,37 @@ function vendorOrder(vendors){
   rest.sort((a,b)=>(b.podpct??-1)-(a.podpct??-1));
   return pri.concat(rest);
 }
+/* ---- checkbox vendor multi-select (empty set = all) ---- */
+const VMSEL={};
+function orderedVendors(){ return vendorOrder([...new Set(scored().map(r=>r.isp))].map(isp=>({isp}))).map(v=>v.isp); }
+function mselSet(id){ return (VMSEL[id] && VMSEL[id].set) || new Set(); }
+function mselLabelText(id){ const s=mselSet(id); return s.size===0?'All vendors':(s.size===1?shortV([...s][0]):s.size+' vendors'); }
+function updateMselLabel(id){ const h=document.getElementById(id); if(!h)return; const l=h.querySelector('.lbl'); if(l) l.textContent=mselLabelText(id); }
+function closeAllMsel(except){ document.querySelectorAll('.msel.open').forEach(m=>{ if(m!==except) m.classList.remove('open'); }); }
+document.addEventListener('click',()=>closeAllMsel(null));
+function buildVMsel(id,onchange){
+  const host=document.getElementById(id); if(!host) return;
+  if(!VMSEL[id]) VMSEL[id]={set:new Set()};
+  VMSEL[id].onchange=onchange;
+  const sel=VMSEL[id].set;
+  const vends=orderedVendors();
+  [...sel].forEach(v=>{ if(!vends.includes(v)) sel.delete(v); });  // prune gone vendors
+  const atAttr=v=>String(v).replace(/"/g,'&quot;');
+  const rows=['<label class="msel-all"><input type="checkbox" data-all="1"'+(sel.size===0?' checked':'')+'> All vendors</label>']
+    .concat(vends.map(v=>'<label><input type="checkbox" value="'+atAttr(v)+'"'+(sel.has(v)?' checked':'')+'> '+shortV(v)+'</label>'));
+  host.innerHTML='<button type="button" class="msel-btn"><span class="lbl">'+mselLabelText(id)+'</span><span class="cv">&#9662;</span></button><div class="msel-panel">'+rows.join('')+'</div>';
+  host.querySelector('.msel-btn').onclick=e=>{ e.stopPropagation(); const open=host.classList.contains('open'); closeAllMsel(host); host.classList.toggle('open',!open); };
+  host.querySelector('.msel-panel').onclick=e=>e.stopPropagation();
+  host.querySelectorAll('.msel-panel input').forEach(inp=>{
+    inp.onchange=()=>{
+      if(inp.dataset.all){ sel.clear(); host.querySelectorAll('.msel-panel input[value]').forEach(c=>c.checked=false); }
+      else { if(inp.checked) sel.add(inp.value); else sel.delete(inp.value); }
+      const allCb=host.querySelector('input[data-all]'); if(allCb) allCb.checked=sel.size===0;
+      updateMselLabel(id);
+      if(VMSEL[id].onchange) VMSEL[id].onchange();
+    };
+  });
+}
 let EXCLUDED = new Set();
 let DISPATCH = {};                 // station label -> "HH:MM"
 let PPP_RATES = {};                // PPP vendor -> rate (default 7)
@@ -789,7 +856,8 @@ function idleRows(){ return segRows().filter(r=>!r.conflict && (r.ofd===null||r.
 function stationAgg(vendorFilter){
   const g={};
   let rows=scored();
-  if(vendorFilter) rows=rows.filter(r=>r.isp===vendorFilter);
+  if(vendorFilter instanceof Set){ if(vendorFilter.size) rows=rows.filter(r=>vendorFilter.has(r.isp)); }
+  else if(vendorFilter) rows=rows.filter(r=>r.isp===vendorFilter);
   rows.forEach(r=>{
     const k=r.station;
     if(!g[k]) g[k]={station:k,city:r.city,crr:0,ofd:0,pod:0,sfSum:0,sfN:0,risk:0,vend:{},couriers:[],
@@ -856,7 +924,7 @@ function kpi(lab,val,unit,sub,cls){
 }
 
 /* ---------- charts ---------- */
-const CANVAS={stn:'stnChart',status:'statusChart',vend:'vendChart',third:'thirdChart',load:'loadChart',avgVend:'avgVendChart',avgLoc:'avgLocChart',ryPod:'ryPodChart',ryVend:'ryVendChart'};
+const CANVAS={stn:'stnChart',status:'statusChart',vend:'vendChart',third:'thirdChart',load:'loadChart',avgVend:'avgVendChart',avgLoc:'avgLocChart',ryPod:'ryPodChart',ryVend:'ryVendChart',routePod:'routePodChart'};
 function destroy(id){
   if(charts[id]){ try{charts[id].destroy();}catch(e){} delete charts[id]; }
   const ex = (typeof Chart!=='undefined' && Chart.getChart) ? Chart.getChart(CANVAS[id]) : null;
@@ -1095,92 +1163,186 @@ function baseOpts(o){
     }};
 }
 
-/* ---------- routes ---------- */
-function routeAgg(vendorFilter){
-  let rows=scored();
-  if(vendorFilter) rows=rows.filter(r=>r.isp===vendorFilter);
-  const byStation={};
-  rows.forEach(r=>{
-    if(!byStation[r.station]) byStation[r.station]={station:r.station,routes:{}};
-    const st=byStation[r.station];
-    if(!st.routes[r.route]) st.routes[r.route]={route:r.route,crr:0,ofd:0,pod:0,sfSum:0,sfN:0,vend:{},couriers:[]};
-    const rt=st.routes[r.route];
-    rt.crr++; rt.ofd+=r.ofd||0; rt.pod+=r.pod||0; rt.couriers.push(r);
-    if(r.sf!==null){rt.sfSum+=r.sf;rt.sfN++;}
-    rt.vend[r.isp]=(rt.vend[r.isp]||0)+1;
-  });
-  return Object.values(byStation).map(st=>{
-    st.routeList=Object.values(st.routes).map(rt=>{
-      rt.podpct=rt.ofd>0?rt.pod/rt.ofd*100:null;
-      rt.sf=rt.sfN?rt.sfSum/rt.sfN:null;
-      rt.avg=rt.crr>0?rt.ofd/rt.crr:0;
-      const vs=Object.keys(rt.vend);
-      rt.vendor=vs.length===1?vs[0]:'Mixed';
-      return rt;
-    }).sort((a,b)=>(a.podpct??999)-(b.podpct??999));
-    st.routeCount=st.routeList.length;
-    st.worst=st.routeList.length?(st.routeList[0].podpct??999):999;
-    return st;
-  }).sort((a,b)=>a.worst-b.worst);
-}
+/* ---------- routes: flat, sortable, filterable table ---------- */
 let routeOpen=new Set();
 let routeExpandAll=false;
+let routeStatus='';          // '', 'ok','warn','risk'
+let routeSearch='';
+let routeSortKey='podpct';
+let routeSortDir=1;          // 1 asc, -1 desc
 function rKey(st,rt){ return st+'||'+rt; }
 function toggleRoute(st,rt){ const k=rKey(st,rt); if(routeOpen.has(k)) routeOpen.delete(k); else routeOpen.add(k); renderRoutes(); }
 function vpRank(isp){ return (isp in VPRIORITY)?VPRIORITY[isp]:100; }
-function routeCardHTML(st,g,isOpen){
-  const worst=st.routeList[0]?st.routeList[0].podpct:null;
-  const wcls=worst===null?'idle':(worst>=g.t?'ok':(worst>=g.r?'warn':'risk'));
+function routeStatusOf(rt,g){ return rt.podpct===null?'idle':(rt.podpct>=g.t?'ok':(rt.podpct>=g.r?'warn':'risk')); }
+function statusLabel(st){ return st==='ok'?'On target':(st==='warn'?'Below':(st==='risk'?'At risk':'No vol')); }
+function routeFlat(sel){
+  let rows=scored();
+  if(sel && sel.size) rows=rows.filter(r=>sel.has(r.isp));
+  const map={};
+  rows.forEach(r=>{
+    const k=rKey(r.station,r.route);
+    if(!map[k]) map[k]={station:r.station,route:r.route,crr:0,ofd:0,pod:0,sfSum:0,sfN:0,asg:0,pend:0,vend:{},couriers:[]};
+    const rt=map[k]; rt.crr++; rt.ofd+=r.ofd||0; rt.pod+=r.pod||0; rt.couriers.push(r);
+    if(r.sf!==null){rt.sfSum+=r.sf;rt.sfN++;}
+    if(r.assigned>0){rt.asg+=r.assigned; rt.pend+=(r.pendingPUP||0);}
+    rt.vend[r.isp]=(rt.vend[r.isp]||0)+1;
+  });
+  return Object.values(map).map(rt=>{
+    rt.podpct=rt.ofd>0?rt.pod/rt.ofd*100:null;
+    rt.sf=rt.sfN?rt.sfSum/rt.sfN:null;
+    rt.avg=rt.crr>0?rt.ofd/rt.crr:0;
+    rt.c2b=rt.asg>0?(rt.asg-rt.pend)/rt.asg*100:null;
+    const vs=Object.keys(rt.vend); rt.vendor=vs.length===1?vs[0]:'Mixed';
+    return rt;
+  });
+}
+function rcols(){
+  const c=[{k:'station',t:'Station',l:1},{k:'route',t:'Route',l:1},{k:'vendor',t:'Vendor',l:1},
+    {k:'crr',t:'Crr'},{k:'ofd',t:'OFD'},{k:'avg',t:'Avg'},{k:'pod',t:'POD'},{k:'podpct',t:'POD%'}];
+  if(SEG==='B2C') c.push({k:'c2b',t:'C2B%'});
+  c.push({k:'sf',t:'SF'},{k:null,t:'Status'});
+  return c;
+}
+function setRouteSort(k){ if(!k)return; if(routeSortKey===k) routeSortDir*=-1; else { routeSortKey=k; routeSortDir = (k==='podpct')?1:(['station','route','vendor'].includes(k)?1:-1); } renderRoutes(); }
+function sortRoutes(routes){
+  const k=routeSortKey, dir=routeSortDir, txt=['station','route','vendor'].includes(k);
+  return [...routes].sort((a,b)=>{
+    let av=a[k], bv=b[k];
+    if(txt){ return String(av).localeCompare(String(bv),undefined,{numeric:true})*dir; }
+    av=(av===null||av===undefined)?-Infinity:av; bv=(bv===null||bv===undefined)?-Infinity:bv;
+    return (av-bv)*dir;
+  });
+}
+function routeTableHTML(routes,g,forceOpen){
+  const cols=rcols(), ncol=cols.length, isB2C=SEG==='B2C';
+  const head='<tr>'+cols.map(c=>{
+    const act=c.k&&c.k===routeSortKey; const ar=act?'<span class="ar">'+(routeSortDir>0?'&#9650;':'&#9660;')+'</span>':'';
+    return '<th class="'+(c.l?'l':'')+'"'+(c.k?' onclick="setRouteSort(\''+c.k+'\')"':' style="cursor:default"')+'>'+c.t+ar+'</th>';
+  }).join('')+'</tr>';
   let body='';
-  st.routeList.forEach(rt=>{
-    const rc=rt.podpct===null?'':(rt.podpct>=g.t?'pod-ok':(rt.podpct>=g.r?'pod-warn':'pod-risk'));
-    const multi=rt.crr>1;
-    const open=multi && isOpen(st.station,rt.route);
+  sortRoutes(routes).forEach(rt=>{
+    const st=routeStatusOf(rt,g);
+    const pc=rt.podpct===null?'':(rt.podpct>=g.t?'pod-ok':(rt.podpct>=g.r?'pod-warn':'pod-risk'));
+    const cc=rt.c2b===null?'':(rt.c2b>=T.b2c_c2b?'pod-ok':'pod-risk');
+    const multi=rt.crr>1, open=multi&&(forceOpen||routeExpandAll||routeOpen.has(rKey(rt.station,rt.route)));
     const caret=multi?'<span class="rt-caret'+(open?' open':'')+'"></span>':'';
-    const click=multi?' class="rt-row" style="cursor:pointer" onclick="toggleRoute(\''+st.station.replace(/'/g,"")+'\',\''+rt.route.replace(/'/g,"")+'\')"':'';
-    body+='<tr'+click+'><td>'+caret+rt.route+'</td><td class="vend-cell">'+shortV(rt.vendor)+'</td><td>'+rt.crr+'</td><td>'+rt.ofd+'</td><td>'+rt.avg.toFixed(1)+'</td><td>'+rt.pod+'</td><td class="'+rc+'">'+fmtPct(rt.podpct,0)+'</td><td>'+fmtPct(rt.sf,0)+'</td></tr>';
+    const vpri=(rt.vendor in VPRIORITY)?' rt-vpri':'';
+    const click=multi&&!forceOpen?' onclick="toggleRoute(\''+rt.station.replace(/'/g,"")+'\',\''+rt.route.replace(/'/g,"")+'\')"':'';
+    body+='<tr class="rt-main'+(multi&&!forceOpen?' expandable':'')+vpri+'"'+click+'>'+
+      '<td class="l">'+rt.station+'</td>'+
+      '<td class="l">'+caret+rt.route+'</td>'+
+      '<td class="l">'+shortV(rt.vendor)+'</td>'+
+      '<td>'+rt.crr+'</td><td>'+rt.ofd+'</td><td>'+rt.avg.toFixed(1)+'</td><td>'+rt.pod+'</td>'+
+      '<td class="'+pc+'">'+fmtPct(rt.podpct,0)+'</td>'+
+      (isB2C?'<td class="'+cc+'">'+fmtPct(rt.c2b,0)+'</td>':'')+
+      '<td>'+fmtPct(rt.sf,0)+'</td>'+
+      '<td><span class="tag '+st+'">'+statusLabel(st)+'</span></td></tr>';
     if(open){
-      const cs=[...rt.couriers].sort((a,b)=> vpRank(a.isp)-vpRank(b.isp) || (a.podpct??999)-(b.podpct??999));
-      const multiVendor = new Set(cs.map(c=>c.isp)).size>1;
-      let lastV=null;
+      const cs=[...rt.couriers].sort((a,b)=>vpRank(a.isp)-vpRank(b.isp)||(a.podpct??999)-(b.podpct??999));
+      const multiV=new Set(cs.map(c=>c.isp)).size>1; let lastV=null;
       cs.forEach(c=>{
-        if(multiVendor && c.isp!==lastV){ body+='<tr class="routesub-hd"><td colspan="8">'+shortV(c.isp)+'</td></tr>'; lastV=c.isp; }
-        const cc=c.podpct===null?'':(c.podpct>=g.t?'pod-ok':(c.podpct>=g.r?'pod-warn':'pod-risk'));
-        body+='<tr class="routesub"><td>'+c.emp+'</td><td class="vend-cell">'+shortV(c.isp)+'</td><td></td><td>'+(c.ofd??'—')+'</td><td></td><td>'+(c.pod??'—')+'</td><td class="'+cc+'">'+fmtPct(c.podpct,0)+'</td><td>'+fmtPct(c.sf,0)+'</td></tr>';
+        if(multiV && c.isp!==lastV){ body+='<tr class="rt-subhd"><td></td><td colspan="'+(ncol-1)+'" class="l">'+shortV(c.isp)+'</td></tr>'; lastV=c.isp; }
+        const ccl=c.podpct===null?'':(c.podpct>=g.t?'pod-ok':(c.podpct>=g.r?'pod-warn':'pod-risk'));
+        const cc2=(c.assigned>0)?(c.puppct>=T.b2c_c2b?'pod-ok':'pod-risk'):'';
+        body+='<tr class="rt-sub"><td></td><td class="l">'+c.emp+'</td><td class="l">'+shortV(c.isp)+'</td>'+
+          '<td></td><td>'+(c.ofd??'—')+'</td><td></td><td>'+(c.pod??'—')+'</td>'+
+          '<td class="'+ccl+'">'+fmtPct(c.podpct,0)+'</td>'+
+          (isB2C?'<td class="'+cc2+'">'+(c.assigned>0?fmtPct(c.puppct,0):'—')+'</td>':'')+
+          '<td>'+fmtPct(c.sf,0)+'</td><td></td></tr>';
       });
     }
   });
-  return '<div class="stncard st-'+wcls+'" id="routecard_'+safeId(st.station)+'">'+
-    '<div class="stncard-hd"><div><div class="stncard-name">'+st.station+'</div><div class="stncard-sub">'+st.routeCount+' route'+(st.routeCount>1?'s':'')+' &middot; tap a multi-courier route</div></div>'+
-    '<div class="stncard-pod '+wcls+'"><span>Worst</span><b>'+fmtPct(worst,0)+'</b></div></div>'+
-    '<div class="stnsec"><div class="scroll"><table class="mini"><thead><tr><th>Route</th><th>Vendor</th><th>Crr</th><th>OFD</th><th>Avg OFD</th><th>POD</th><th>POD%</th><th>SF</th></tr></thead><tbody>'+body+'</tbody></table></div></div></div>';
+  if(!body) body='<tr><td class="l" colspan="'+ncol+'" style="text-align:center;color:var(--muted);padding:24px">No routes match these filters.</td></tr>';
+  return '<table class="rtbl"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
 }
 function renderRoutes(){
-  document.getElementById('routeTitle').textContent=(SEG==='B2C'?'B2C':'B2B')+' route analysis by station';
-  const vSel=document.getElementById('routeVend');
-  fillSel(vSel,['All vendors',...new Set(scored().map(r=>r.isp))],renderRoutes);
-  const vf=(vSel.value&&vSel.value!=='All vendors')?vSel.value:'';
+  document.getElementById('routeTitle').textContent=(SEG==='B2C'?'B2C':'B2B')+' route analysis';
+  buildVMsel('routeVendMs',renderRoutes);
+  const sel=mselSet('routeVendMs');
   const g=tgt();
-  const stns=routeAgg(vf);
-  const grid=document.getElementById('routeGrid');
-  if(!stns.length){ grid.innerHTML='<div class="empty">'+(ROWS.length?'No routes match this filter.':'No data loaded. Use Paste data to import a Spanel export.')+'</div>'; return; }
-  grid.innerHTML=stns.map(st=>routeCardHTML(st,g,(s,r)=>routeExpandAll||routeOpen.has(rKey(s,r)))).join('');
+  const all=routeFlat(sel);                       // scoped by vendor only
+  // station filter (rebuilt each render, value preserved)
+  const stnSel=document.getElementById('routeStn');
+  const cur=stnSel.value||'All stations';
+  const stnList=[...new Set(all.map(r=>r.station))].sort();
+  stnSel.innerHTML=['All stations',...stnList].map(o=>'<option'+(o===cur?' selected':'')+'>'+o+'</option>').join('');
+  stnSel.onchange=renderRoutes;
+  const stnF=(stnSel.value&&stnSel.value!=='All stations')?stnSel.value:'';
+  // search box reflects state
+  const sInp=document.getElementById('routeSearch'); if(sInp && sInp.value!==routeSearch) sInp.value=routeSearch;
+  // apply filters
+  let routes=all;
+  if(stnF) routes=routes.filter(r=>r.station===stnF);
+  if(routeStatus) routes=routes.filter(r=>routeStatusOf(r,g)===routeStatus);
+  const q=routeSearch.trim().toLowerCase();
+  if(q) routes=routes.filter(r=>r.route.toLowerCase().includes(q)||r.station.toLowerCase().includes(q)||shortV(r.vendor).toLowerCase().includes(q));
+  // status switch active state
+  document.querySelectorAll('#routeStatusSw button').forEach(b=>b.classList.toggle('on',(b.dataset.st||'')===routeStatus));
+  // KPIs
+  const kpiBox=document.getElementById('routeKpis');
+  if(!all.length){
+    kpiBox.innerHTML=''; document.getElementById('routeCount').textContent='';
+    document.getElementById('routeTableWrap').innerHTML='<div class="empty">'+(ROWS.length?'No routes match this filter.':'No data loaded. Use Paste data to import a Spanel export.')+'</div>';
+    document.getElementById('routeChartCard').style.display='none'; destroy('routePod');
+    const eb=document.getElementById('routeExpandBtn'); if(eb) eb.textContent=routeExpandAll?'Collapse all':'Expand all';
+    return;
+  }
+  const scoreable=routes.filter(r=>r.podpct!==null);
+  const onT=scoreable.filter(r=>r.podpct>=g.t).length;
+  const below=scoreable.filter(r=>r.podpct>=g.r&&r.podpct<g.t).length;
+  const risk=scoreable.filter(r=>r.podpct<g.r).length;
+  const ofd=routes.reduce((a,r)=>a+r.ofd,0), pod=routes.reduce((a,r)=>a+r.pod,0);
+  const wpod=ofd>0?pod/ofd*100:null;
+  const worst=[...scoreable].sort((a,b)=>a.podpct-b.podpct)[0];
+  kpiBox.innerHTML=[
+    kpi('Routes', routes.length,'', (stnF||routeStatus||q)?'in current filter':'in scope',''),
+    kpi('On target', onT,'', 'POD &ge; '+g.t+'%', onT? 'ok':''),
+    kpi('Below target', below,'', g.r+'&ndash;'+g.t+'%', below?'warn':''),
+    kpi('At risk', risk,'', 'POD &lt; '+g.r+'%', risk?'risk':'ok'),
+    kpi('Weighted POD %', fmtPct(wpod,1),'', ofd+' OFD &rarr; '+pod+' POD', clsFor(wpod,g)),
+    kpi('Worst route', worst?fmtPct(worst.podpct,0):'—','', worst?(worst.route+' &middot; '+worst.station):'', worst?'risk':'')
+  ].join('');
+  // table first (so a chart/library hiccup can never blank the data)
+  document.getElementById('routeCount').textContent=routes.length+' route'+(routes.length===1?'':'s');
+  document.getElementById('routeTableWrap').innerHTML=routeTableHTML(routes,g,false);
+  // chart: worst 15 (guarded)
+  const card=document.getElementById('routeChartCard');
+  const worst15=[...scoreable].sort((a,b)=>a.podpct-b.podpct).slice(0,15);
+  if(worst15.length && typeof Chart!=='undefined'){
+    card.style.display='';
+    try{
+      destroy('routePod');
+      charts.routePod=new Chart(document.getElementById('routePodChart'),{
+        type:'bar',
+        data:{labels:worst15.map(r=>r.route),datasets:[{label:'POD %',data:worst15.map(r=>r.podpct),
+          backgroundColor:worst15.map(r=>r.podpct>=g.t?STC.ok:(r.podpct>=g.r?STC.warn:STC.risk)),borderRadius:4,maxBarThickness:22}]},
+        options:{indexAxis:'y',maintainAspectRatio:false,layout:{padding:{right:26}},
+          plugins:{legend:{display:false},
+            tooltip:{callbacks:{title:it=>{const r=worst15[it[0].dataIndex]; return r.route+' · '+r.station;},label:c=>'POD '+c.parsed.x.toFixed(1)+'% · '+shortV(worst15[c.dataIndex].vendor)}},
+            datalabels:{anchor:'end',align:'end',color:'#334155',font:{size:9.5,weight:'700'},formatter:v=>v.toFixed(0)}},
+          scales:{x:{max:110,grid:{color:'#eef2f6'},title:{display:true,text:'POD %',font:{size:10}},ticks:{font:{size:10}}},
+            y:{grid:{display:false},ticks:{font:{size:10},autoSkip:false}}}}
+      });
+    }catch(e){ card.style.display='none'; }
+  } else { card.style.display='none'; destroy('routePod'); }
   const eb=document.getElementById('routeExpandBtn'); if(eb) eb.textContent=routeExpandAll?'Collapse all':'Expand all';
 }
 async function downloadRoutes(){
-  const vSel=document.getElementById('routeVend');
-  const vf=(vSel.value&&vSel.value!=='All vendors')?vSel.value:'';
-  const g=tgt(); const stns=routeAgg(vf);
-  if(!stns.length){ alert('No routes to export.'); return; }
-  const n=stns.length;
-  const cols=n<=1?1:(n>=5?3:2);
-  const cardW=460, gap=14, pad=22;
-  const width=cols*cardW+(cols-1)*gap+pad*2;
+  const sel=mselSet('routeVendMs'); const g=tgt();
+  let routes=routeFlat(sel);
+  const stnSel=document.getElementById('routeStn');
+  const stnF=(stnSel&&stnSel.value&&stnSel.value!=='All stations')?stnSel.value:'';
+  if(stnF) routes=routes.filter(r=>r.station===stnF);
+  if(routeStatus) routes=routes.filter(r=>routeStatusOf(r,g)===routeStatus);
+  const q=routeSearch.trim().toLowerCase();
+  if(q) routes=routes.filter(r=>r.route.toLowerCase().includes(q)||r.station.toLowerCase().includes(q)||shortV(r.vendor).toLowerCase().includes(q));
+  if(!routes.length){ alert('No routes to export.'); return; }
+  const vlab=sel.size?mselLabelText('routeVendMs'):'';
   const wrap=document.createElement('div');
   wrap.className='export-sheet';
-  wrap.style.cssText='position:fixed;left:-20000px;top:0;width:'+width+'px;background:#fff;padding:'+pad+'px';
-  wrap.innerHTML='<div class="export-hd"><h2>'+(SEG==='B2C'?'B2C':'B2B')+' route analysis'+(vf?' &middot; '+shortV(vf):'')+'</h2><span>'+nowStamp()+'</span></div>'+
-    '<div class="export-grid" style="grid-template-columns:repeat('+cols+',1fr)">'+stns.map(st=>routeCardHTML(st,g,()=>true)).join('')+'</div>';
+  wrap.style.cssText='position:fixed;left:-20000px;top:0;width:1180px;background:#fff;padding:24px';
+  wrap.innerHTML='<div class="export-hd"><h2>'+(SEG==='B2C'?'B2C':'B2B')+' route analysis'+(stnF?' &middot; '+stnF:'')+(vlab?' &middot; '+vlab:'')+'</h2><span>'+nowStamp()+'</span></div>'+
+    '<div class="card"><div class="scroll">'+routeTableHTML(routes,g,true)+'</div></div>';
   document.body.appendChild(wrap); void wrap.offsetHeight;
   try{ wrap.querySelectorAll('.scroll').forEach(s=>s.style.overflow='visible'); await snapNode(wrap,'Route_analysis_'+SEG+'_'+dstamp()); }
   catch(err){ alert('Export failed: '+err.message); }
@@ -1280,8 +1442,10 @@ async function downloadOverview(){
   finally{ el.removeChild(hd); }
 }
 async function downloadAllStations(){
-  const g=tgt(); const stns=stationAgg(STN_VENDOR);
+  const vsel=mselSet('stnVendMs');
+  const g=tgt(); const stns=stationAgg(vsel);
   if(!stns.length){ alert('No stations to export.'); return; }
+  const vlab=vsel.size?mselLabelText('stnVendMs'):'';
   const n=stns.length;
   const cols = n<=1?1 : (n<=4? n : Math.ceil(n/2));   // 7 -> 4 cols (landscape, 2 rows)
   const cardW=380, gap=14, pad=22;
@@ -1289,7 +1453,7 @@ async function downloadAllStations(){
   const wrap=document.createElement('div');
   wrap.className='export-sheet';
   wrap.style.cssText='position:fixed;left:-20000px;top:0;width:'+width+'px;background:#fff;padding:'+pad+'px';
-  wrap.innerHTML='<div class="export-hd"><h2>'+(SEG==='B2C'?'B2C last-mile':'B2B priority')+' station summary'+(STN_VENDOR?' &middot; '+shortV(STN_VENDOR):'')+'</h2><span>'+nowStamp()+'</span></div>'+
+  wrap.innerHTML='<div class="export-hd"><h2>'+(SEG==='B2C'?'B2C last-mile':'B2B priority')+' station summary'+(vlab?' &middot; '+vlab:'')+'</h2><span>'+nowStamp()+'</span></div>'+
     '<div class="export-grid" style="grid-template-columns:repeat('+cols+',1fr)">'+stns.map(s=>summaryCardHTML(s,g)).join('')+'</div>';
   document.body.appendChild(wrap);
   void wrap.offsetHeight;
@@ -1408,12 +1572,10 @@ async function downloadRiyadh(){
 function renderStations(){
   document.getElementById('stnTblTitle').textContent=(SEG==='B2C'?'B2C last-mile':'B2B priority')+' stations';
   const g=tgt();
-  // vendor filter dropdown
-  const vSel=document.getElementById('stnVend');
-  const allVends=[...new Set(scored().map(r=>r.isp))].sort();
-  fillSel(vSel,['All vendors',...allVends],renderStations);
-  STN_VENDOR = (vSel.value && vSel.value!=='All vendors') ? vSel.value : '';
-  const stns=stationAgg(STN_VENDOR); // already sorted worst POD% first
+  // vendor filter (checkbox multi-select; empty = all)
+  buildVMsel('stnVendMs',renderStations);
+  const sel=mselSet('stnVendMs');
+  const stns=stationAgg(sel); // already sorted worst POD% first
   const grid=document.getElementById('stnGrid');
   if(stns.length===0){ grid.innerHTML='<div class="empty">'+(ROWS.length?'No stations match this filter.':'No data loaded. Use Paste data to import a Spanel export.')+'</div>'; return; }
   grid.innerHTML=stns.map(s=>{
@@ -1528,7 +1690,7 @@ async function shareImage(el,name,text){
   }catch(err){ if(err && err.name!=='AbortError') alert('Share failed: '+err.message); }
 }
 async function snapStation(station){
-  const g=tgt(); const s=stationAgg(STN_VENDOR).find(x=>x.station===station);
+  const g=tgt(); const s=stationAgg(mselSet('stnVendMs')).find(x=>x.station===station);
   if(!s) return;
   const twoCol = s.couriers.length>14;
   const width = twoCol? 1140 : 620;
@@ -2091,7 +2253,7 @@ function renderTab(){
   else if(TAB==='calc') renderCalc();
 }
 function renderAll(resetFilters){
-  if(resetFilters){ ['lowStn','lowVend','delayStn','utilStn','utilVend','stnVend','routeVend'].forEach(id=>{const s=document.getElementById(id); if(s) s.dataset.filled='';}); STN_VENDOR=''; courVendCollapsed.clear(); routeOpen.clear(); routeExpandAll=false; }
+  if(resetFilters){ ['lowStn','lowVend','delayStn','utilStn','utilVend','routeStn'].forEach(id=>{const s=document.getElementById(id); if(s) s.dataset.filled='';}); Object.values(VMSEL).forEach(m=>m.set.clear()); courVendCollapsed.clear(); routeOpen.clear(); routeExpandAll=false; routeStatus=''; routeSearch=''; routeSortKey='podpct'; routeSortDir=1; }
   updatePills(); renderTab();
   const total=ROWS.length, exc=ROWS.filter(r=>r.excluded).length;
   document.getElementById('meta').innerHTML='<span class="num">'+total+'</span> couriers &middot; <span class="num">'+ROWS.filter(r=>r.seg==='B2C'&&!r.excluded).length+'</span> B2C / <span class="num">'+ROWS.filter(r=>r.seg==='B2B'&&!r.excluded).length+'</span> B2B'+(exc?' &middot; <span class="num">'+exc+'</span> excluded':'');
@@ -2213,6 +2375,12 @@ document.getElementById('dlAllStations').onclick=downloadAllStations;
 document.getElementById('dlLow').onclick=downloadLow;
 document.getElementById('dlRoutes').onclick=downloadRoutes;
 document.getElementById('routeExpandBtn').onclick=()=>{ routeExpandAll=!routeExpandAll; renderRoutes(); };
+(function(){
+  const si=document.getElementById('routeSearch');
+  if(si) si.addEventListener('input',()=>{ routeSearch=si.value; renderRoutes(); });
+  const sw=document.getElementById('routeStatusSw');
+  if(sw) sw.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; routeStatus=b.dataset.st||''; renderRoutes(); });
+})();
 document.getElementById('dlOverview').onclick=downloadOverview;
 document.getElementById('dlRiyadh').onclick=downloadRiyadh;
 document.getElementById('dlDelay').onclick=()=>snap(document.getElementById('delayTable'),'Delayed_first_POD_'+SEG+'_'+dstamp());
