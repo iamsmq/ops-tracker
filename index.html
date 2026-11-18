@@ -317,6 +317,7 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
     <button data-region="" class="on"><small>Region</small>All</button>
     <button data-region="SR"><small>South</small>SR</button>
     <button data-region="CR"><small>Central</small>CR</button>
+    <button data-region="ER"><small>East</small>ER</button>
   </div>
   <div class="segswitch" id="subregionswitch" style="margin-left:8px">
     <button data-sub="" class="on"><small>CR area</small>All</button>
@@ -622,14 +623,18 @@ const PREFIX_CITY = {
   BHX:'Bishah', BSH:'Bishah',
   ANX:'Namas', ANS:'Namas',
   // Central Region (CR)
-  MJX:'Majmaah', DWX:'Duwadimi', AKJ:'Al Kharj', ELX:'Buraydah', RUX:'Riyadh'
+  MJX:'Majmaah', DWX:'Duwadimi', AKJ:'Al Kharj', ELX:'Buraydah', RUX:'Riyadh',
+  // Eastern Region (ER) — B2C only
+  DMX:'Dammam', HOX:'Hofuf', JBX:'Jubail', HBX:'Hafr Al Baten'
 };
-// Prefixes that belong to SR; any other prefix is treated as CR.
+// Prefixes that belong to SR; ER prefixes are listed too; anything else is CR.
 const SR_PREFIXES = new Set(['KMX','KMT','GIX','GIZ','EAX','EAM','MYX','MYL','WAX','WAE','BHX','BSH','ANX','ANS']);
-function regionOf(prefix){ return SR_PREFIXES.has(prefix) ? 'SR' : 'CR'; }
+const ER_PREFIXES = new Set(['DMX','HOX','JBX','HBX']);
+const ROOF_SCANS = 'Under the Roof Scans';
+function regionOf(prefix){ return SR_PREFIXES.has(prefix) ? 'SR' : (ER_PREFIXES.has(prefix) ? 'ER' : 'CR'); }
 const OFD_DEFAULT_VENDORS = ['SMSA','Mutairi PPH','Core Support PPH'];
 // Canonical city order per region (used for stable ordering; others appended alphabetically)
-const CITY_ORDER = ['Khamis Mushayt','Jazan','Najran','Muhayil','Wadi Dawasir','Bishah','Namas','RUH 1','RUH 2','RUH 3','RUH 4','RUH 5','Buraydah','Majmaah','Al Kharj','Duwadimi'];
+const CITY_ORDER = ['Khamis Mushayt','Jazan','Najran','Muhayil','Wadi Dawasir','Bishah','Namas','RUH 1','RUH 2','RUH 3','RUH 4','RUH 5','Buraydah','Majmaah','Al Kharj','Duwadimi','Dammam','Hofuf','Jubail','Hafr Al Baten',ROOF_SCANS];
 function activeCities(){
   const set=new Set();
   ROWS.filter(r=>!r.excluded && inReg(r)).forEach(r=>{ if(r.city) set.add(r.city); });
@@ -713,9 +718,16 @@ function deriveRow(r){
     if(d==='0' && digits.length>1) d=digits[1];
     if(d) city='RUH '+d;
   }
-  // CR sub-region: Riyadh = RUH, the other CR cities = CR Remotes. SR rows have no sub-region.
+  // Eastern Region (ER): B2C only. Routes with ST after the prefix are pooled into one "Under the Roof Scans" station.
+  let roofScan=false;
+  if(region==='ER'){
+    seg='B2C';
+    const rest=route.slice(prefix.length).trim();
+    if(/(^|\s)ST(\s|\d|$)/i.test(rest)){ roofScan=true; city=ROOF_SCANS; }
+  }
+  // CR sub-region: Riyadh = RUH, the other CR cities = CR Remotes. SR/ER rows have no sub-region.
   const subregion = region==='CR' ? (prefix==='RUX' ? 'RUH' : 'CR Remotes') : '';
-  const station = seg==='B2C' ? city+' LMX' : city+' St';
+  const station = roofScan ? ROOF_SCANS : (seg==='B2C' ? city+' LMX' : city+' St');
   const ofd=num(r.OFD), pod=num(r.POD);
   const conflict = ( (ofd===0||ofd===null) && pod!==null && pod>0 ) || (ofd!==null && pod!==null && pod>ofd);
   const assigned=num(r.Assigned)||0;
