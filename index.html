@@ -384,8 +384,9 @@ select,input[type=number]{font-family:inherit;font-size:13px;border:1px solid va
   <!-- SUMMARY -->
   <div class="view on" data-view="summary">
     <div class="stntoolbar">
-      <div><h3>Operations summary</h3><div class="desc">All 14 stations at report run time. Copy to WhatsApp or email in one click.</div></div>
-      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap" class="no-snap">
+      <div><h3 id="sumTitle">Operations summary</h3><div class="desc">Full view of the selected segment. Follows the B2C/B2B, region and sub-region filters at the top.</div></div>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center" class="no-snap">
+        <label class="eyebrow">Vendor</label><div class="msel" id="sumVendMs"></div>
         <button class="pngbtn" id="sumCopy">Copy for WhatsApp</button>
         <button class="pngbtn" id="sumShare" style="display:none">Share image</button>
         <button class="pngbtn" id="sumDl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>Download image</button>
@@ -930,7 +931,7 @@ function kpi(lab,val,unit,sub,cls){
 }
 
 /* ---------- charts ---------- */
-const CANVAS={stn:'stnChart',status:'statusChart',vend:'vendChart',third:'thirdChart',load:'loadChart',avgVend:'avgVendChart',avgLoc:'avgLocChart',ryPod:'ryPodChart',ryVend:'ryVendChart',routePod:'routePodChart'};
+const CANVAS={stn:'stnChart',status:'statusChart',vend:'vendChart',third:'thirdChart',load:'loadChart',avgVend:'avgVendChart',avgLoc:'avgLocChart',ryPod:'ryPodChart',ryVend:'ryVendChart',routePod:'routePodChart',sumStn:'sumStnChart',sumVend:'sumVendChart'};
 function destroy(id){
   if(charts[id]){ try{charts[id].destroy();}catch(e){} delete charts[id]; }
   const ex = (typeof Chart!=='undefined' && Chart.getChart) ? Chart.getChart(CANVAS[id]) : null;
@@ -1730,67 +1731,139 @@ function segSummary(sg){
 }
 function segCls(v,t,r){ return v==null?'idle':(v>=t?'ok':(v>=r?'warn':'risk')); }
 function nowStamp(){ const d=new Date(); return d.toLocaleDateString([], {day:'2-digit',month:'short',year:'numeric'})+', '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+function sumScope(){
+  const parts=[SEG==='B2C'?'B2C last-mile':'B2B priority'];
+  if(REGION) parts.push(REGION);
+  if(SUBREGION) parts.push(SUBREGION);
+  if(mselSet('sumVendMs').size) parts.push(mselLabelText('sumVendMs'));
+  return parts.join(' · ');
+}
+function summaryData(){
+  const g=tgt();
+  const vsel=mselSet('sumVendMs');
+  let rows=scored(); if(vsel.size) rows=rows.filter(r=>vsel.has(r.isp));
+  let sr=segRows(); if(vsel.size) sr=sr.filter(r=>vsel.has(r.isp));
+  const stns=stationAgg(vsel);
+  const ofd=rows.reduce((a,r)=>a+(r.ofd||0),0), pod=rows.reduce((a,r)=>a+(r.pod||0),0);
+  const wpod=ofd>0?pod/ofd*100:null;
+  const onTarget=stns.filter(s=>s.podpct!==null&&s.podpct>=g.t).length;
+  const belowTarget=stns.filter(s=>s.podpct!==null&&s.podpct<g.t);
+  const atRisk=rows.filter(r=>r.podpct!==null&&r.podpct<g.r).length;
+  const sfVals=rows.filter(r=>r.sf!==null).map(r=>r.sf);
+  const avgSF=sfVals.length?sfVals.reduce((a,b)=>a+b,0)/sfVals.length:null;
+  const withA=rows.filter(r=>r.assigned>0);
+  const c2bVals=withA.filter(r=>r.puppct!==null).map(r=>r.puppct);
+  const c2b=c2bVals.length?c2bVals.reduce((a,b)=>a+b,0)/c2bVals.length:null;
+  const delayed=sr.filter(r=>r.firstPodMin!==null&&r.firstPodMin>DELAY_MIN).length;
+  const idle=sr.filter(r=>!r.conflict&&(r.ofd===null||r.ofd===0)&&(r.pod===null||r.pod===0)).length;
+  return {g,rows,sr,stns,ofd,pod,wpod,onTarget,belowTarget,atRisk,avgSF,c2b,withA,delayed,idle};
+}
 function renderSummary(){
-  const b=segSummary('B2C'), p=segSummary('B2B');
   const box=document.getElementById('summaryCard');
+  const isB2C=SEG==='B2C';
+  document.getElementById('sumTitle').textContent=(isB2C?'B2C':'B2B')+' operations summary';
   if(!ROWS.length){
     box.innerHTML='<div class="card" id="sumSheet" style="padding:40px 24px;text-align:center">'+
       '<h2 style="margin-bottom:8px">No data loaded</h2>'+
       '<p style="color:var(--muted);max-width:460px;margin:0 auto 18px">Paste or import a Spanel export to build the report. Station, segment and city are derived from the route.</p>'+
       '<button class="btn-primary" onclick="document.getElementById(\'pasteOpen\').click()">Paste data</button></div>';
-    return;
+    destroy('sumStn'); destroy('sumVend'); return;
   }
-  const kpi=(x)=>{
-    const cls=segCls(x.wpod,x.target,x.risk);
-    return '<div class="sum-seg '+cls+'"><div class="strip"></div>'+
-      '<div class="tag2">'+x.sg+' &middot; POD vs '+x.target+'%</div>'+
-      '<div class="big">'+fmtPct(x.wpod,1)+'</div>'+
-      '<div class="row"><span>OFD <b>'+x.ofd+'</b></span><span>couriers <b>'+x.couriers+'</b></span><span>at risk <b>'+x.atRisk+'</b></span>'+
-      (x.sg==='B2C'?'<span>C2B <b>'+fmtPct(x.c2b,0)+'</b></span>':'')+'<span>delayed 1st POD <b>'+x.delayed+'</b></span></div></div>';
-  };
-  // scorecard rows by city
-  let rows='';
-  activeCities().forEach(c=>{
-    const bc=b.byCity[c], pc=p.byCity[c];
-    const bcl=segCls(bc?bc.podpct:null,b.target,b.risk), pcl=segCls(pc?pc.podpct:null,p.target,p.risk);
-    rows+='<tr><td>'+c+'</td>'+
-      '<td class="sep"><span class="dotc '+bcl+'"></span>'+(bc?fmtPct(bc.podpct,1):'—')+'</td><td>'+(bc?bc.ofd:'—')+'</td><td>'+(bc?(bc.risk||0):'—')+'</td>'+
-      '<td class="sep"><span class="dotc '+pcl+'"></span>'+(pc?fmtPct(pc.podpct,1):'—')+'</td><td>'+(pc?pc.ofd:'—')+'</td><td>'+(pc?(pc.risk||0):'—')+'</td></tr>';
-  });
+  buildVMsel('sumVendMs',renderSummary);
+  const d=summaryData(), g=d.g;
+  if(!d.rows.length){
+    box.innerHTML='<div class="card" id="sumSheet" style="padding:36px 24px;text-align:center"><h2 style="margin-bottom:6px">No '+(isB2C?'B2C':'B2B')+' volume in this view</h2><p style="color:var(--muted)">Nothing matches '+sumScope()+'. Adjust the segment, region or vendor filter.</p></div>';
+    destroy('sumStn'); destroy('sumVend'); return;
+  }
+  // KPIs
+  const kpis=[
+    kpi('Couriers', d.sr.length,'', d.rows.length+' scored'+(d.idle?' &middot; '+d.idle+' idle':''),''),
+    kpi('Weighted POD %', fmtPct(d.wpod,1),'', 'target '+g.t+'%', clsFor(d.wpod,g)),
+    kpi('OFD &rarr; POD', d.ofd+' &rarr; '+d.pod,'', (d.ofd-d.pod)+' not delivered',''),
+    kpi('Stations on target', d.onTarget+' <small>/ '+d.stns.length+'</small>','', 'at or above '+g.t+'%', d.onTarget===d.stns.length?'ok':(d.onTarget>=d.stns.length/2?'warn':'risk')),
+    kpi('Couriers at risk', d.atRisk,'', 'below '+g.r+'% POD', d.atRisk===0?'ok':(d.atRisk<=5?'warn':'risk'))
+  ];
+  if(isB2C) kpis.push(kpi('C2B pickup', fmtPct(d.c2b,0),'', 'target '+T.b2c_c2b+'% &middot; '+d.withA.length+' assigned', d.c2b===null?'':(d.c2b>=T.b2c_c2b?'ok':(d.c2b>=T.b2c_c2b-10?'warn':'risk'))));
+  kpis.push(kpi('Avg success factor', fmtPct(d.avgSF,0),'', 'unweighted mean',''));
+  kpis.push(kpi('Delayed 1st POD', d.delayed,'', 'past '+fmtMins(DELAY_MIN), d.delayed===0?'ok':(d.delayed<=5?'warn':'risk')));
+
+  // station scorecard (city order)
+  const order=activeCities();
+  const scStns=[...d.stns].sort((a,b)=>{ const ia=order.indexOf(a.city), ib=order.indexOf(b.city); return (ia<0?999:ia)-(ib<0?999:ib); });
+  const scRows=scStns.map(s=>{
+    const st=s.podpct===null?'idle':(s.podpct>=g.t?'ok':(s.podpct>=g.r?'warn':'risk'));
+    const stTxt=st==='ok'?'On target':(st==='warn'?'Below':(st==='risk'?'At risk':'No vol'));
+    const c2bc=s.pupPct===null?'':(s.pupPct>=T.b2c_c2b?'pod-ok':'pod-risk');
+    return '<tr><td class="l" style="font-weight:600">'+s.station+'</td><td>'+s.crr+'</td><td>'+s.ofd+'</td><td>'+s.pod+'</td>'+
+      '<td class="'+(s.podpct===null?'':(s.podpct>=g.t?'pod-ok':(s.podpct>=g.r?'pod-warn':'pod-risk')))+'">'+fmtPct(s.podpct,1)+'</td>'+
+      (isB2C?'<td class="'+c2bc+'">'+fmtPct(s.pupPct,0)+'</td>':'')+
+      '<td>'+fmtPct(s.sf,0)+'</td><td>'+(s.risk||'0')+'</td><td><span class="tag '+st+'">'+stTxt+'</span></td></tr>';
+  }).join('');
+  const totAvg=d.rows.length?d.ofd/d.rows.length:0;
+  const scoreTable='<table class="rtbl"><thead><tr><th class="l">Station</th><th>Crr</th><th>OFD</th><th>POD</th><th>POD%</th>'+(isB2C?'<th>C2B%</th>':'')+'<th>SF</th><th>Risk</th><th>Status</th></tr></thead><tbody>'+scRows+
+    '<tr class="totrow"><td class="l">Total</td><td>'+d.rows.length+'</td><td>'+d.ofd+'</td><td>'+d.pod+'</td><td class="'+(d.wpod===null?'':(d.wpod>=g.t?'pod-ok':(d.wpod>=g.r?'pod-warn':'pod-risk')))+'">'+fmtPct(d.wpod,1)+'</td>'+(isB2C?'<td>'+fmtPct(d.c2b,0)+'</td>':'')+'<td>'+fmtPct(d.avgSF,0)+'</td><td>'+d.atRisk+'</td><td></td></tr></tbody></table>';
+
+  // vendor breakdown for the second chart
+  const vg={};
+  d.rows.forEach(r=>{ const v=r.isp||'—'; if(!vg[v])vg[v]={isp:v,ofd:0,pod:0}; vg[v].ofd+=r.ofd||0; vg[v].pod+=r.pod||0; });
+  const vArr=vendorOrder(Object.values(vg).map(v=>{v.podpct=v.ofd>0?v.pod/v.ofd*100:null; return v;})).filter(v=>v.ofd>0);
+
   // attention
   const attn=[];
-  if(b.belowTarget.length) attn.push('<b>B2C below target:</b> '+b.belowTarget.join(', '));
-  if(p.belowTarget.length) attn.push('<b>B2B below target:</b> '+p.belowTarget.join(', '));
-  if(b.c2b!==null && b.c2b<T.b2c_c2b) attn.push('<b>B2C C2B below '+T.b2c_c2b+'%:</b> '+fmtPct(b.c2b,0));
-  if((b.delayed+p.delayed)>0) attn.push('<b>Delayed first POD:</b> '+(b.delayed+p.delayed)+' couriers past '+fmtMins(DELAY_MIN));
-  const attnHtml = attn.length ? attn.join('<br>') : '<span class="none">All stations at or above target. No flags.</span>';
+  if(d.belowTarget.length) attn.push('<b>Below target:</b> '+d.belowTarget.map(s=>s.city+' ('+fmtPct(s.podpct,0)+')').join(', '));
+  if(isB2C && d.c2b!==null && d.c2b<T.b2c_c2b) attn.push('<b>C2B below '+T.b2c_c2b+'%:</b> '+fmtPct(d.c2b,0));
+  if(d.delayed>0) attn.push('<b>Delayed first POD:</b> '+d.delayed+' couriers past '+fmtMins(DELAY_MIN));
+  if(d.atRisk>0) attn.push('<b>At risk:</b> '+d.atRisk+' couriers below '+g.r+'% POD');
+  const attnHtml=attn.length?attn.join('<br>'):'<span style="color:var(--ok);font-weight:600">All stations at or above target. No flags.</span>';
 
-  box.innerHTML='<div class="card" id="sumSheet">'+
-    '<div class="sum-hd"><h2>Operations Summary</h2><span class="stamp">'+nowStamp()+'</span></div>'+
-    '<div class="sum-kpis">'+kpi(b)+kpi(p)+'</div>'+
-    '<table class="sum-score"><thead>'+
-      '<tr><th></th><th class="grp sep" colspan="3">B2C last mile</th><th class="grp sep" colspan="3">B2B priority</th></tr>'+
-      '<tr><th>City</th><th class="sep">POD%</th><th>OFD</th><th>Risk</th><th class="sep">POD%</th><th>OFD</th><th>Risk</th></tr>'+
-    '</thead><tbody>'+rows+'</tbody></table>'+
-    '<div class="sum-attn">'+attnHtml+'</div></div>';
+  box.innerHTML='<div id="sumSheet">'+
+    '<div class="export-hd" style="margin-bottom:14px"><h2>'+(isB2C?'B2C last-mile':'B2B priority')+' summary</h2><span>'+sumScope()+' &middot; '+nowStamp()+'</span></div>'+
+    '<div class="kpis" style="margin-bottom:16px">'+kpis.join('')+'</div>'+
+    '<div class="grid2" style="margin-bottom:16px">'+
+      '<div class="card"><div class="hd"><h3>POD % by station</h3><span class="note">target '+g.t+'% &middot; risk below '+g.r+'%</span></div><div class="bd"><div class="chartbox"><canvas id="sumStnChart"></canvas></div></div></div>'+
+      '<div class="card"><div class="hd"><h3>Vendor weighted POD %</h3><span class="note">priority vendors first</span></div><div class="bd"><div class="chartbox"><canvas id="sumVendChart"></canvas></div></div></div>'+
+    '</div>'+
+    '<div class="card" style="margin-bottom:16px"><div class="hd"><h3>Station scorecard</h3><span class="note">'+scStns.length+' stations</span></div><div class="scroll">'+scoreTable+'</div></div>'+
+    '<div class="card"><div class="hd"><h3>Attention</h3></div><div style="padding:14px 16px;font-size:13px;line-height:1.7">'+attnHtml+'</div></div>'+
+  '</div>';
+
+  // charts (guarded)
+  if(typeof Chart!=='undefined'){
+    try{
+      destroy('sumStn');
+      const cl=scStns.map(s=>s.city), cv=scStns.map(s=>s.podpct);
+      charts.sumStn=new Chart(document.getElementById('sumStnChart'),{
+        data:{labels:cl,datasets:[
+          {type:'bar',label:'POD %',data:cv,backgroundColor:scStns.map(s=>s.podpct===null?'#cbd5e1':(s.podpct>=g.t?STC.ok:(s.podpct>=g.r?STC.warn:STC.risk))),borderRadius:5,maxBarThickness:46,order:2},
+          {type:'line',label:'Target',data:cl.map(()=>g.t),borderColor:STC.line,borderWidth:1.5,borderDash:[5,4],pointRadius:0,order:1}
+        ]},
+        options:baseOpts({yMax:110,yTitle:'POD %',rotate:true})
+      });
+    }catch(e){}
+    try{
+      destroy('sumVend');
+      charts.sumVend=new Chart(document.getElementById('sumVendChart'),{
+        data:{labels:vArr.map(v=>shortV(v.isp)),datasets:[
+          {type:'bar',label:'POD %',data:vArr.map(v=>v.podpct),backgroundColor:vArr.map(v=>v.podpct>=g.t?STC.ok:(v.podpct>=g.r?STC.warn:STC.risk)),borderRadius:5,maxBarThickness:46,order:2},
+          {type:'line',label:'Target',data:vArr.map(()=>g.t),borderColor:STC.line,borderWidth:1.5,borderDash:[5,4],pointRadius:0,order:1}
+        ]},
+        options:baseOpts({yMax:110,yTitle:'POD %',rotate:true})
+      });
+    }catch(e){}
+  } else { destroy('sumStn'); destroy('sumVend'); }
 }
 function summaryText(plain){
-  const b=segSummary('B2C'), p=segSummary('B2B');
+  if(!ROWS.length) return 'No data loaded.';
+  const d=summaryData(), g=d.g, isB2C=SEG==='B2C';
   const emo=(v,t,r)=>v==null?'⚪':(v>=t?'🟢':(v>=r?'🟡':'🔴'));
   const st=plain?'':'*';
-  let s=st+'Operations Summary'+st+'\n'+nowStamp()+'\n\n';
-  s+=st+'B2C'+st+' POD '+fmtPct(b.wpod,0)+' (target '+b.target+') '+emo(b.wpod,b.target,b.risk)+'  |  at risk '+b.atRisk+'\n';
-  s+=st+'B2B'+st+' POD '+fmtPct(p.wpod,0)+' (target '+p.target+') '+emo(p.wpod,p.target,p.risk)+'  |  at risk '+p.atRisk+'\n';
-  s+='Total OFD '+(b.ofd+p.ofd)+'  |  Delayed 1st POD '+(b.delayed+p.delayed)+'\n\n';
-  activeCities().forEach(c=>{
-    const bc=b.byCity[c], pc=p.byCity[c];
-    s+=st+c+st+'  B2C '+(bc?fmtPct(bc.podpct,0):'—')+' '+emo(bc?bc.podpct:null,b.target,b.risk)+'  |  B2B '+(pc?fmtPct(pc.podpct,0):'—')+' '+emo(pc?pc.podpct:null,p.target,p.risk)+'\n';
-  });
-  if(b.belowTarget.length||p.belowTarget.length){
-    s+='\n'+st+'Below target'+st+': ';
-    const bt=[]; if(b.belowTarget.length)bt.push('B2C '+b.belowTarget.join(', ')); if(p.belowTarget.length)bt.push('B2B '+p.belowTarget.join(', '));
-    s+=bt.join(' | ');
-  }
+  const order=activeCities();
+  const scStns=[...d.stns].sort((a,b)=>{ const ia=order.indexOf(a.city), ib=order.indexOf(b.city); return (ia<0?999:ia)-(ib<0?999:ib); });
+  let s=st+(isB2C?'B2C last-mile':'B2B priority')+' Summary'+st+'\n'+sumScope()+'\n'+nowStamp()+'\n\n';
+  s+='POD '+fmtPct(d.wpod,0)+' (target '+g.t+') '+emo(d.wpod,g.t,g.r)+'  |  OFD '+d.ofd+' → POD '+d.pod+'\n';
+  s+='Couriers '+d.rows.length+'  |  at risk '+d.atRisk+(isB2C?'  |  C2B '+fmtPct(d.c2b,0):'')+'  |  delayed 1st POD '+d.delayed+'\n\n';
+  scStns.forEach(sx=>{ s+=st+sx.city+st+' '+fmtPct(sx.podpct,0)+' '+emo(sx.podpct,g.t,g.r)+'  (OFD '+sx.ofd+', risk '+(sx.risk||0)+')\n'; });
+  if(d.belowTarget.length){ s+='\n'+st+'Below target'+st+': '+d.belowTarget.map(x=>x.city+' '+fmtPct(x.podpct,0)).join(', '); }
   return s;
 }
 async function copyWA(){
